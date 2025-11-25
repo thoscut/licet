@@ -1,0 +1,41 @@
+rrd/*
+
+# Go build artifacts
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.*
+
+# Go workspace
+vendor/
+
+# Database files
+*.db
+*.db-journal
+
+# Config (use example)
+config.yaml
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# GitHub Actions artifacts
+artifacts/
+release-assets/
+release-notes.md
