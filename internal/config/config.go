@@ -73,13 +73,13 @@ func Load() (*Config, error) {
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("./config")
-	viper.AddConfigPath("/etc/phplicensewatcher")
+	viper.AddConfigPath("/etc/licet")
 
 	// Set defaults
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("database.type", "sqlite")
-	viper.SetDefault("database.database", "phplicensewatcher.db")
+	viper.SetDefault("database.database", "licet.db")
 	viper.SetDefault("database.sslmode", "disable")
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "text")

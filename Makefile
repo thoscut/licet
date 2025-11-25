@@ -1,7 +1,7 @@
 .PHONY: build run test clean docker
 
 # Build variables
-BINARY_NAME=phplicensewatcher
+BINARY_NAME=licet
 VERSION?=1.0.0
 BUILD_DIR=build
 GO_FILES=$(shell find . -name '*.go' -not -path './vendor/*')
@@ -45,7 +45,7 @@ clean:
 	@echo "Cleaning..."
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out coverage.html
-	rm -f phplicensewatcher.db
+	rm -f licet.db
 
 # Install dependencies
 deps:

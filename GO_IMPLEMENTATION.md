@@ -1,6 +1,6 @@
-# Go Reimplementation of PHPLicenseWatcher
+# Go Reimplementation of Licet
 
-This directory contains a complete reimplementation of PHPLicenseWatcher in Go, providing all the functionality of the original PHP version with significant improvements in performance, security, and maintainability.
+This directory contains a complete reimplementation of Licet in Go, providing all the functionality of the original PHP version with significant improvements in performance, security, and maintainability.
 
 ## What's Included
 
@@ -69,11 +69,11 @@ web/
 make build
 
 # Run
-./build/phplicensewatcher
+./build/licet
 
 # Or use Docker
-docker build -t phplicensewatcher:go .
-docker run -p 8080:8080 phplicensewatcher:go
+docker build -t licet:go .
+docker run -p 8080:8080 licet:go
 ```
 
 See `README.go.md` for complete documentation.
@@ -127,7 +127,7 @@ server:
 
 database:
   type: sqlite
-  database: phplicensewatcher.db
+  database: licet.db
 
 servers:
   - hostname: "27000@flexlm.example.com"
@@ -240,7 +240,7 @@ To use this implementation:
 1. Review and adjust configuration in `config.example.yaml`
 2. Install license server binaries (lmutil, rlmutil, etc.)
 3. Build: `make build`
-4. Run: `./build/phplicensewatcher`
+4. Run: `./build/licet`
 5. Access web UI at http://localhost:8080
 
 For production deployment:
@@ -253,4 +253,4 @@ For production deployment:
 
 ## License
 
-GNU General Public License v3.0 - Same as original PHPLicenseWatcher
+GNU General Public License v3.0 - Same as original Licet

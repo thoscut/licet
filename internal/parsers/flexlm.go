@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thoscut/phplicensewatcher/internal/models"
+	"github.com/thoscut/licet/internal/models"
 	log "github.com/sirupsen/logrus"
 )
 

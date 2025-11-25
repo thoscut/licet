@@ -1,6 +1,6 @@
-# PHPLicenseWatcher - Go Edition
+# Licet - Go Edition
 
-A modern rewrite of PHPLicenseWatcher in Go, providing license server monitoring with improved performance, security, and maintainability.
+A modern rewrite of Licet in Go, providing license server monitoring with improved performance, security, and maintainability.
 
 ## Features
 
@@ -26,11 +26,11 @@ A modern rewrite of PHPLicenseWatcher in Go, providing license server monitoring
 
 ```bash
 # Clone the repository
-git clone https://github.com/thoscut/phplicensewatcher.git
-cd phplicensewatcher
+git clone https://github.com/thoscut/licet.git
+cd licet
 
 # Build the application
-go build -o phplicensewatcher ./cmd/server
+go build -o licet ./cmd/server
 
 # Copy example config
 cp config.example.yaml config.yaml
@@ -39,7 +39,7 @@ cp config.example.yaml config.yaml
 vim config.yaml
 
 # Run the server
-./phplicensewatcher
+./licet
 ```
 
 The server will start on http://localhost:8080
@@ -48,14 +48,14 @@ The server will start on http://localhost:8080
 
 ```bash
 # Build Docker image
-docker build -t phplicensewatcher:go .
+docker build -t licet:go .
 
 # Run container
 docker run -d \
   -p 8080:8080 \
   -v $(pwd)/config.yaml:/app/config.yaml \
   -v $(pwd)/data:/app/data \
-  phplicensewatcher:go
+  licet:go
 ```
 
 ## Configuration
@@ -145,13 +145,13 @@ air
 
 ```bash
 # Build for Linux
-GOOS=linux GOARCH=amd64 go build -o phplicensewatcher-linux-amd64 ./cmd/server
+GOOS=linux GOARCH=amd64 go build -o licet-linux-amd64 ./cmd/server
 
 # Build for macOS
-GOOS=darwin GOARCH=amd64 go build -o phplicensewatcher-darwin-amd64 ./cmd/server
+GOOS=darwin GOARCH=amd64 go build -o licet-darwin-amd64 ./cmd/server
 
 # Build for Windows
-GOOS=windows GOARCH=amd64 go build -o phplicensewatcher-windows-amd64.exe ./cmd/server
+GOOS=windows GOARCH=amd64 go build -o licet-windows-amd64.exe ./cmd/server
 ```
 
 ## Supported License Server Types
@@ -227,10 +227,10 @@ telnet server.example.com 27000
 
 ```bash
 # SQLite: Check file permissions
-ls -la phplicensewatcher.db
+ls -la licet.db
 
 # PostgreSQL: Test connection
-psql -h localhost -U phplicensewatcher -d phplicensewatcher
+psql -h localhost -U licet -d licet
 ```
 
 ### Email alerts not sending
@@ -260,14 +260,14 @@ Contributions welcome! Please:
 
 ## License
 
-GNU General Public License v3.0 - Same as original PHPLicenseWatcher
+GNU General Public License v3.0 - Same as original Licet
 
 ## Credits
 
-- Original PHPLicenseWatcher by Vladimir Vuksan
+- Original Licet by Vladimir Vuksan
 - Go rewrite maintains compatibility while modernizing the codebase
 
 ## Support
 
-- Issues: https://github.com/thoscut/phplicensewatcher/issues
+- Issues: https://github.com/thoscut/licet/issues
 - Documentation: See CLAUDE.md for detailed code documentation

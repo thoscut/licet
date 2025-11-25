@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/thoscut/phplicensewatcher/internal/config"
-	"github.com/thoscut/phplicensewatcher/internal/database"
-	"github.com/thoscut/phplicensewatcher/internal/handlers"
-	"github.com/thoscut/phplicensewatcher/internal/scheduler"
-	"github.com/thoscut/phplicensewatcher/internal/services"
+	"github.com/thoscut/licet/internal/config"
+	"github.com/thoscut/licet/internal/database"
+	"github.com/thoscut/licet/internal/handlers"
+	"github.com/thoscut/licet/internal/scheduler"
+	"github.com/thoscut/licet/internal/services"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -31,7 +31,7 @@ func main() {
 	// Setup logging
 	setupLogging(cfg)
 
-	log.Info("Starting PHPLicenseWatcher (Go Edition)")
+	log.Info("Starting Licet (Go Edition)")
 
 	// Initialize database
 	db, err := database.New(cfg.Database)

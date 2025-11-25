@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/thoscut/phplicensewatcher/internal/config"
-	"github.com/thoscut/phplicensewatcher/internal/models"
+	"github.com/thoscut/licet/internal/config"
+	"github.com/thoscut/licet/internal/models"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/gomail.v2"
 )
@@ -113,7 +113,7 @@ Message:
 %s
 
 --
-PHPLicenseWatcher (Go Edition)
+Licet (Go Edition)
 `,
 		alert.ServerHostname,
 		alert.FeatureName,

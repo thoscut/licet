@@ -1,4 +1,4 @@
-module github.com/thoscut/phplicensewatcher
+module github.com/thoscut/licet
 
 go 1.21
 

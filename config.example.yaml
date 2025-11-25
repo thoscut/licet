@@ -1,4 +1,4 @@
-# PHPLicenseWatcher Configuration (Go Edition)
+# Licet Configuration (Go Edition)
 
 server:
   port: 8080
@@ -7,12 +7,12 @@ server:
 database:
   # Options: sqlite, postgres, mysql
   type: sqlite
-  database: phplicensewatcher.db
+  database: licet.db
 
   # For postgres/mysql:
   # host: localhost
   # port: 5432  # 5432 for postgres, 3306 for mysql
-  # username: phplicensewatcher
+  # username: licet
   # password: changeme
   # sslmode: disable
 

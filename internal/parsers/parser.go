@@ -3,7 +3,7 @@ package parsers
 import (
 	"fmt"
 
-	"github.com/thoscut/phplicensewatcher/internal/models"
+	"github.com/thoscut/licet/internal/models"
 )
 
 // Parser interface for all license server types

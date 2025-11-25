@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=1 go build -ldflags="-w -s" -o phplicensewatcher ./cmd/server
+RUN CGO_ENABLED=1 go build -ldflags="-w -s" -o licet ./cmd/server
 
 # Runtime stage
 FROM alpine:latest
@@ -29,7 +29,7 @@ RUN addgroup -g 1000 app && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/phplicensewatcher .
+COPY --from=builder /app/licet .
 COPY --from=builder /app/web ./web
 
 # Copy example config (can be mounted over)
@@ -42,4 +42,4 @@ USER app
 
 EXPOSE 8080
 
-CMD ["./phplicensewatcher"]
+CMD ["./licet"]

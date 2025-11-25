@@ -1,8 +1,8 @@
-# PHPLicenseWatcher - AI Assistant Guide
+# Licet - AI Assistant Guide
 
 ## Project Overview
 
-PHPLicenseWatcher is a PHP-based web application for monitoring software license servers. It provides:
+Licet is a PHP-based web application for monitoring software license servers. It provides:
 - Web UI for viewing license server status
 - License usage reporting (RRD or MySQL)
 - Alerting for license server downtime and expiration
@@ -76,7 +76,7 @@ The application supports seven different license server types:
 
 ## Database Schema
 
-Located in: **phplicensewatcher.sql**
+Located in: **licet.sql**
 
 ### Tables
 
@@ -116,7 +116,7 @@ $db_type = "mysql";
 $db_hostname = "localhost";
 $db_username = "phplic";
 $db_password = "phplic";
-$db_database = "phplicensewatcher";
+$db_database = "licet";
 
 // Email alerting
 $notify_from = "licensing@example.com";
@@ -180,18 +180,18 @@ $monitor_license[] = array(
 
 ```bash
 # License utilization collection (every 15 minutes)
-0,15,30,45 * * * * wget -O - http://server/phplicensewatcher/license_util.php >> /dev/null
+0,15,30,45 * * * * wget -O - http://server/licet/license_util.php >> /dev/null
 
 # Daily license cache (runs at 12:15 AM)
-15 0 * * * wget -O - http://server/phplicensewatcher/license_cache.php >> /dev/null
+15 0 * * * wget -O - http://server/licet/license_cache.php >> /dev/null
 
 # License expiration alerts (runs at 2 AM)
-0 2 * * * wget -O - http://server/phplicensewatcher/license_alert.php >> /dev/null
+0 2 * * * wget -O - http://server/licet/license_alert.php >> /dev/null
 ```
 
 Alternative using PHP CLI:
 ```bash
-0,15,30,45 * * * * php /var/www/html/phplicensewatcher/license_util.php >> /dev/null
+0,15,30,45 * * * * php /var/www/html/licet/license_util.php >> /dev/null
 ```
 
 ## Key Functions Reference
@@ -256,7 +256,7 @@ Add `?debug=1` to URL or check these:
 ### Modifying Email Alerts
 
 1. Edit email settings in config.php
-2. Test with: `http://server/phplicensewatcher/license_alert.php?nomail=1`
+2. Test with: `http://server/licet/license_alert.php?nomail=1`
 3. Modify license_alert.php for custom logic
 4. Alert throttling in muffleAlerts() (tools.php:400)
 
@@ -376,7 +376,7 @@ Add to URLs: `?debug=1` to enable SQL query printing and verbose output
 
 2. Test database connection:
    ```bash
-   mysql -u phplic -p phplicensewatcher
+   mysql -u phplic -p licet
    ```
 
 3. Test RRD creation:
@@ -403,7 +403,7 @@ Add to URLs: `?debug=1` to enable SQL query printing and verbose output
 
 4. **Database errors**
    - Verify DB credentials in config.php
-   - Check table schema matches phplicensewatcher.sql
+   - Check table schema matches licet.sql
    - Ensure DB user has INSERT/SELECT permissions
 
 ## Dependencies
@@ -442,7 +442,7 @@ Add to URLs: `?debug=1` to enable SQL query printing and verbose output
 
 ### Extended Installation (Graphs/Alerts)
 1. Create MySQL database: `mysqladmin create licenses`
-2. Import schema: `mysql -f licenses < phplicensewatcher.sql`
+2. Import schema: `mysql -f licenses < licet.sql`
 3. Create DB user and grant permissions
 4. Configure database settings in config.php
 5. Set up cron jobs for data collection
@@ -503,7 +503,7 @@ chown www-data:www-data rrd
 
 ## Additional Resources
 
-- Original project: http://freshmeat.net/projects/phplicensewatcher/
+- Original project: http://freshmeat.net/projects/licet/
 - FlexLM: http://www.globetrotter.com/flexlm/
 - Cacti integration: See config.php $cactiurl settings
 - PHP PEAR: http://pear.php.net/

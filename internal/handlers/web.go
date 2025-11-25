@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/thoscut/phplicensewatcher/internal/services"
+	"github.com/thoscut/licet/internal/services"
 	log "github.com/sirupsen/logrus"
 )
 

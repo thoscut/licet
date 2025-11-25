@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/thoscut/phplicensewatcher/internal/config"
-	"github.com/thoscut/phplicensewatcher/internal/models"
+	"github.com/thoscut/licet/internal/config"
+	"github.com/thoscut/licet/internal/models"
 	log "github.com/sirupsen/logrus"
 )
 
