@@ -13,12 +13,12 @@ type Parser interface {
 
 // ParserFactory creates appropriate parser for license server type
 type ParserFactory struct {
-	lmutilPath    string
-	rlmstatPath   string
-	spmstatPath   string
-	sesictrlPath  string
-	rvlstatusPath string
-	tlmServerPath string
+	lmutilPath     string
+	rlmstatPath    string
+	spmstatPath    string
+	sesictrlPath   string
+	rvlstatusPath  string
+	tlmServerPath  string
 	pixarQueryPath string
 }
 

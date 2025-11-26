@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	log "github.com/sirupsen/logrus"
 	"github.com/thoscut/licet/internal/config"
 	"github.com/thoscut/licet/internal/models"
 	"github.com/thoscut/licet/internal/parsers"
-	log "github.com/sirupsen/logrus"
 )
 
 type LicenseService struct {

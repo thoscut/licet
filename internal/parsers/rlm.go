@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thoscut/licet/internal/models"
 	log "github.com/sirupsen/logrus"
+	"github.com/thoscut/licet/internal/models"
 )
 
 type RLMParser struct {

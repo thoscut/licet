@@ -28,16 +28,16 @@ type ServerStatus struct {
 
 // Feature represents a license feature
 type Feature struct {
-	ID              int64     `db:"id" json:"id"`
-	ServerHostname  string    `db:"server_hostname" json:"server_hostname"`
-	Name            string    `db:"name" json:"name"`
-	Version         string    `db:"version" json:"version"`
-	VendorDaemon    string    `db:"vendor_daemon" json:"vendor_daemon"`
-	TotalLicenses   int       `db:"total_licenses" json:"total_licenses"`
-	UsedLicenses    int       `db:"used_licenses" json:"used_licenses"`
-	ExpirationDate  time.Time `db:"expiration_date" json:"expiration_date"`
-	DaysToExpire    int       `json:"days_to_expire"`
-	LastUpdated     time.Time `db:"last_updated" json:"last_updated"`
+	ID             int64     `db:"id" json:"id"`
+	ServerHostname string    `db:"server_hostname" json:"server_hostname"`
+	Name           string    `db:"name" json:"name"`
+	Version        string    `db:"version" json:"version"`
+	VendorDaemon   string    `db:"vendor_daemon" json:"vendor_daemon"`
+	TotalLicenses  int       `db:"total_licenses" json:"total_licenses"`
+	UsedLicenses   int       `db:"used_licenses" json:"used_licenses"`
+	ExpirationDate time.Time `db:"expiration_date" json:"expiration_date"`
+	DaysToExpire   int       `json:"days_to_expire"`
+	LastUpdated    time.Time `db:"last_updated" json:"last_updated"`
 }
 
 // FeatureUsage represents historical usage data
@@ -63,32 +63,32 @@ type LicenseUser struct {
 
 // Alert represents a license alert
 type Alert struct {
-	ID             int64     `db:"id" json:"id"`
-	ServerHostname string    `db:"server_hostname" json:"server_hostname"`
-	FeatureName    string    `db:"feature_name" json:"feature_name"`
-	AlertType      string    `db:"alert_type" json:"alert_type"` // expiration, down, denial
-	Message        string    `db:"message" json:"message"`
-	Severity       string    `db:"severity" json:"severity"` // info, warning, critical
-	Sent           bool      `db:"sent" json:"sent"`
+	ID             int64      `db:"id" json:"id"`
+	ServerHostname string     `db:"server_hostname" json:"server_hostname"`
+	FeatureName    string     `db:"feature_name" json:"feature_name"`
+	AlertType      string     `db:"alert_type" json:"alert_type"` // expiration, down, denial
+	Message        string     `db:"message" json:"message"`
+	Severity       string     `db:"severity" json:"severity"` // info, warning, critical
+	Sent           bool       `db:"sent" json:"sent"`
 	SentAt         *time.Time `db:"sent_at" json:"sent_at,omitempty"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
 }
 
 // LicenseEvent represents a license checkout or denial event
 type LicenseEvent struct {
-	ID             int64     `db:"id" json:"id"`
-	Date           time.Time `db:"event_date" json:"event_date"`
-	Time           time.Time `db:"event_time" json:"event_time"`
-	EventType      string    `db:"event_type" json:"event_type"` // IN, OUT, DENIED
-	FeatureName    string    `db:"feature_name" json:"feature_name"`
-	Username       string    `db:"username" json:"username"`
-	Reason         string    `db:"reason" json:"reason"`
+	ID          int64     `db:"id" json:"id"`
+	Date        time.Time `db:"event_date" json:"event_date"`
+	Time        time.Time `db:"event_time" json:"event_time"`
+	EventType   string    `db:"event_type" json:"event_type"` // IN, OUT, DENIED
+	FeatureName string    `db:"feature_name" json:"feature_name"`
+	Username    string    `db:"username" json:"username"`
+	Reason      string    `db:"reason" json:"reason"`
 }
 
 // ServerQueryResult represents the result of querying a license server
 type ServerQueryResult struct {
-	Status      ServerStatus
-	Features    []Feature
-	Users       []LicenseUser
-	Error       error
+	Status   ServerStatus
+	Features []Feature
+	Users    []LicenseUser
+	Error    error
 }
