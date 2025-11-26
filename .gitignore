@@ -34,3 +34,8 @@ config.yaml
 # OS
 .DS_Store
 Thumbs.db
+
+# GitHub Actions artifacts
+artifacts/
+release-assets/
+release-notes.md

@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	log "github.com/sirupsen/logrus"
 	"github.com/thoscut/licet/internal/config"
 	"github.com/thoscut/licet/internal/models"
-	log "github.com/sirupsen/logrus"
 )
 
 type CollectorService struct {
@@ -93,9 +93,9 @@ func (s *CollectorService) CheckExpirations() error {
 			ServerHostname: feature.ServerHostname,
 			FeatureName:    feature.Name,
 			AlertType:      "expiration",
-			Message:        fmt.Sprintf("License '%s' on %s expires in %d days (%s)",
+			Message: fmt.Sprintf("License '%s' on %s expires in %d days (%s)",
 				feature.Name, feature.ServerHostname, daysToExpire, feature.ExpirationDate.Format("2006-01-02")),
-			Severity:       severity,
+			Severity: severity,
 		}
 
 		// Check throttle before creating alert

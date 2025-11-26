@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	log "github.com/sirupsen/logrus"
 	"github.com/thoscut/licet/internal/config"
 	"github.com/thoscut/licet/internal/models"
-	log "github.com/sirupsen/logrus"
 	"gopkg.in/gomail.v2"
 )
 
