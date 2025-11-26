@@ -75,13 +75,59 @@ jobs:
       - name: Get dependencies
         run: go mod download
 
+      - name: Install cross-compilation tools
+        if: matrix.goos != 'linux' || matrix.goarch != 'amd64'
+        run: |
+          sudo apt-get update
+          # Install cross-compilers for different architectures
+          if [ "${{ matrix.goos }}" = "linux" ]; then
+            if [ "${{ matrix.goarch }}" = "arm64" ]; then
+              sudo apt-get install -y gcc-aarch64-linux-gnu
+            elif [ "${{ matrix.goarch }}" = "arm" ]; then
+              sudo apt-get install -y gcc-arm-linux-gnueabihf
+            fi
+          elif [ "${{ matrix.goos }}" = "darwin" ]; then
+            # macOS cross-compilation
+            wget -q https://github.com/messense/homebrew-macos-cross-toolchains/releases/download/v12.2.0/x86_64-apple-darwin20.4-cross.tar.gz
+            sudo tar -xzf x86_64-apple-darwin20.4-cross.tar.gz -C /usr/local
+            if [ "${{ matrix.goarch }}" = "arm64" ]; then
+              wget -q https://github.com/messense/homebrew-macos-cross-toolchains/releases/download/v12.2.0/aarch64-apple-darwin20.4-cross.tar.gz
+              sudo tar -xzf aarch64-apple-darwin20.4-cross.tar.gz -C /usr/local
+            fi
+          elif [ "${{ matrix.goos }}" = "windows" ]; then
+            sudo apt-get install -y gcc-mingw-w64-x86-64
+          fi
+
       - name: Build binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           GOARM: ${{ matrix.goarm }}
+          CGO_ENABLED: 1
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
+
+          # Set up cross-compilation environment
+          if [ "${{ matrix.goos }}" = "linux" ]; then
+            if [ "${{ matrix.goarch }}" = "arm64" ]; then
+              export CC=aarch64-linux-gnu-gcc
+            elif [ "${{ matrix.goarch }}" = "arm" ]; then
+              export CC=arm-linux-gnueabihf-gcc
+            fi
+          elif [ "${{ matrix.goos }}" = "darwin" ]; then
+            if [ "${{ matrix.goarch }}" = "amd64" ]; then
+              export CC=x86_64-apple-darwin20.4-clang
+              export CGO_CFLAGS="-isysroot /usr/local/x86_64-apple-darwin20.4/SDK"
+              export CGO_LDFLAGS="-isysroot /usr/local/x86_64-apple-darwin20.4/SDK"
+            elif [ "${{ matrix.goarch }}" = "arm64" ]; then
+              export CC=aarch64-apple-darwin20.4-clang
+              export CGO_CFLAGS="-isysroot /usr/local/aarch64-apple-darwin20.4/SDK"
+              export CGO_LDFLAGS="-isysroot /usr/local/aarch64-apple-darwin20.4/SDK"
+            fi
+          elif [ "${{ matrix.goos }}" = "windows" ]; then
+            export CC=x86_64-w64-mingw32-gcc
+          fi
+
           go build -ldflags="-s -w -X main.Version=${VERSION}" \
             -o build/${{ matrix.output_name }} \
             ./cmd/server
