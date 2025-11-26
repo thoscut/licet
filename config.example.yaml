@@ -1,0 +1,60 @@
+# Licet Configuration (Go Edition)
+
+server:
+  port: 8080
+  host: 0.0.0.0
+
+database:
+  # Options: sqlite, postgres, mysql
+  type: sqlite
+  database: licet.db
+
+  # For postgres/mysql:
+  # host: localhost
+  # port: 5432  # 5432 for postgres, 3306 for mysql
+  # username: licet
+  # password: changeme
+  # sslmode: disable
+
+logging:
+  level: info  # debug, info, warn, error
+  format: text  # text or json
+
+# License servers to monitor
+servers:
+  - hostname: "27000@flexlm.example.com"
+    description: "Production FlexLM Server"
+    type: "flexlm"
+    cacti_id: ""
+    webui: ""
+
+  - hostname: "5053@rlm.example.com"
+    description: "RLM License Server"
+    type: "rlm"
+    webui: "http://rlm.example.com:4000"
+
+  # - hostname: "spm.example.com"
+  #   description: "SPM Server"
+  #   type: "spm"
+
+email:
+  enabled: false
+  from: "licensing@example.com"
+  to:
+    - "admin@example.com"
+  alerts:
+    - "alerts@example.com"
+  smtp_host: "smtp.example.com"
+  smtp_port: 587
+  username: ""
+  password: ""
+
+alerts:
+  enabled: true
+  lead_time_days: 10  # Warn this many days before expiration
+  resend_interval_min: 60  # Minutes between duplicate alerts
+
+rrd:
+  enabled: false
+  directory: "./rrd"
+  collection_interval: 5  # Minutes between data collection

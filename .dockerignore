@@ -1,0 +1,12 @@
+*.db
+*.log
+.git
+.gitignore
+build/
+coverage.*
+rrd/
+*.md
+Makefile
+.env
+config.yaml
+!config.example.yaml
