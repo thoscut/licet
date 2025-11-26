@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/thoscut/licet/internal/services"
 	log "github.com/sirupsen/logrus"
+	"github.com/thoscut/licet/internal/services"
 )
 
 type WebHandler struct {

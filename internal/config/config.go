@@ -63,8 +63,8 @@ type AlertConfig struct {
 }
 
 type RRDConfig struct {
-	Enabled           bool
-	Directory         string
+	Enabled            bool
+	Directory          string
 	CollectionInterval int
 }
 

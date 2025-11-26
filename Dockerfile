@@ -1,8 +1,8 @@
 # Build stage
 FROM golang:1.21-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache git make
+# Install build dependencies (gcc and musl-dev required for CGO/SQLite)
+RUN apk add --no-cache git make gcc musl-dev
 
 WORKDIR /app
 
