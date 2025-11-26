@@ -5,7 +5,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/thoscut/licet/internal/config"
 )
 
