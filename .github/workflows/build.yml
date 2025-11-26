@@ -77,32 +77,22 @@ jobs:
         run: go mod download
 
       - name: Install cross-compilation tools
-        if: matrix.goos != 'linux' || matrix.goarch != 'amd64'
+        if: (matrix.goos == 'linux' && matrix.goarch == 'arm64') || matrix.goos == 'windows'
         run: |
           sudo apt-get update
           if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "arm64" ]; then
             sudo apt-get install -y gcc-aarch64-linux-gnu
-          elif [ "${{ matrix.goos }}" = "darwin" ]; then
-            # For CI, we'll skip macOS cross-compilation (complex toolchain)
-            # Native macOS builds work fine in local development
-            echo "Skipping macOS cross-compilation in CI"
-            exit 0
           elif [ "${{ matrix.goos }}" = "windows" ]; then
             sudo apt-get install -y gcc-mingw-w64-x86-64
           fi
 
       - name: Build
+        if: matrix.goos != 'darwin'
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
         run: |
-          # Skip macOS builds in CI (requires complex toolchain)
-          if [ "${{ matrix.goos }}" = "darwin" ]; then
-            echo "Skipping macOS build in CI - use release workflow for full builds"
-            exit 0
-          fi
-
           # Set up cross-compiler
           if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "arm64" ]; then
             export CC=aarch64-linux-gnu-gcc
