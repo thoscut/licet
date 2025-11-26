@@ -43,6 +43,28 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for tag verification
+
+      - name: Verify tag is on main branch
+        run: |
+          # Get the commit hash of the current tag
+          TAG_COMMIT=$(git rev-parse HEAD)
+
+          # Check if this commit exists in main branch history
+          git fetch origin main
+          if ! git merge-base --is-ancestor $TAG_COMMIT origin/main; then
+            echo "❌ ERROR: Tag is not on main branch!"
+            echo "Please merge your changes to main before creating a release tag."
+            echo ""
+            echo "Correct workflow:"
+            echo "  1. Merge your branch to main"
+            echo "  2. Checkout main: git checkout main && git pull"
+            echo "  3. Create tag: git tag -a v1.0.0 -m 'Release'"
+            echo "  4. Push tag: git push origin v1.0.0"
+            exit 1
+          fi
+          echo "✅ Tag is on main branch - proceeding with release"
 
       - name: Set up Go
         uses: actions/setup-go@v5

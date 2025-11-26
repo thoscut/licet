@@ -48,11 +48,31 @@ If you have version information in code (e.g., in `main.go`), update it:
 var Version = "1.0.0"  // Update this
 ```
 
-### 3. Create and Push a Version Tag
+### 3. Merge to Main Branch (REQUIRED)
+
+**IMPORTANT:** Tags must be created from the `main` branch for releases.
+
+```bash
+# Ensure your changes are merged to main first
+git checkout main
+git pull origin main
+
+# If working on a feature branch, merge it first:
+# git merge your-feature-branch
+# OR create a Pull Request and merge via GitHub
+```
+
+### 4. Create and Push a Version Tag
 
 The release workflow triggers on tags matching the pattern `v*.*.*` (semantic versioning).
 
+**Tags must be on main branch!** The workflow will fail if you tag from a different branch.
+
 ```bash
+# Make sure you're on main
+git checkout main
+git pull origin main
+
 # Create a version tag (example: v1.0.0)
 git tag -a v1.0.0 -m "Release version 1.0.0
 
@@ -61,11 +81,17 @@ git tag -a v1.0.0 -m "Release version 1.0.0
 - Bug fixes
 "
 
-# Push the tag to GitHub
+# Push the tag to GitHub (this triggers the release workflow)
 git push origin v1.0.0
 ```
 
-### 4. Monitor the Build
+**What happens next:**
+1. GitHub Actions verifies the tag is on main branch
+2. If verification passes, builds binaries for all platforms
+3. Creates a GitHub release with all artifacts
+4. If verification fails, workflow stops with clear error message
+
+### 5. Monitor the Build
 
 1. Go to your repository on GitHub
 2. Navigate to **Actions** tab
@@ -84,6 +110,31 @@ Once the workflow completes:
 1. Go to the **Releases** section of your repository
 2. Verify all binaries are present
 3. Test download and execution of at least one binary
+
+## Important: Tag Verification
+
+**The release workflow includes automatic verification** to ensure tags are only created from the main branch.
+
+If you accidentally tag from a feature branch, the workflow will:
+1. Detect that the tag is not on main
+2. Stop the build immediately
+3. Show a clear error message with instructions
+4. **Not create a release**
+
+This prevents accidentally releasing code that hasn't been merged to main.
+
+### Error Example
+
+```
+❌ ERROR: Tag is not on main branch!
+Please merge your changes to main before creating a release tag.
+
+Correct workflow:
+  1. Merge your branch to main
+  2. Checkout main: git checkout main && git pull
+  3. Create tag: git tag -a v1.0.0 -m 'Release'
+  4. Push tag: git push origin v1.0.0
+```
 
 ## Release Workflow Details
 
