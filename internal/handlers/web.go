@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	log "github.com/sirupsen/logrus"
 	"github.com/thoscut/licet/internal/services"
+	"github.com/thoscut/licet/web"
 )
 
 type WebHandler struct {
@@ -16,12 +17,8 @@ type WebHandler struct {
 }
 
 func NewWebHandler(licenseService *services.LicenseService, alertService *services.AlertService) *WebHandler {
-	// Load templates
-	tmpl, err := template.ParseGlob("web/templates/*.html")
-	if err != nil {
-		log.Warnf("Failed to load templates: %v", err)
-		tmpl = template.New("fallback")
-	}
+	// Load templates from embedded filesystem via web package
+	tmpl := web.LoadTemplates()
 
 	return &WebHandler{
 		licenseService: licenseService,
