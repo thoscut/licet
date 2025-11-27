@@ -129,11 +129,16 @@ func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check utility status
+	checker := services.NewUtilityChecker()
+	utilities := checker.CheckAll()
+
 	data := map[string]interface{}{
 		"Title":        "Application Settings",
 		"ServerPort":   "8080",
 		"DatabaseType": "SQLite",
 		"TotalServers": len(servers),
+		"Utilities":    utilities,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "settings.html", data); err != nil {

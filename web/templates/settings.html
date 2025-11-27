@@ -101,14 +101,94 @@
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0">Configuration File Location</h5>
+                        <h5 class="mb-0">License Server Utilities Status</h5>
                     </div>
                     <div class="card-body">
-                        <p>To modify server settings, edit the configuration file:</p>
-                        <pre class="bg-light p-3"><code>config.yaml</code></pre>
+                        <p>Status of installed license server binaries:</p>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Utility</th>
+                                    <th>Path</th>
+                                    <th>Status</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range .Utilities}}
+                                <tr>
+                                    <td>{{.Name}}</td>
+                                    <td><code>{{.Path}}</code></td>
+                                    <td>
+                                        {{if .Available}}
+                                            <span class="badge bg-success">Available</span>
+                                        {{else}}
+                                            <span class="badge bg-danger">Not Available</span>
+                                        {{end}}
+                                    </td>
+                                    <td><small>{{.Message}}</small></td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
                         <p class="text-muted mb-0">
-                            <small>Note: Changes to the configuration file require an application restart to take effect.</small>
+                            <small>Note: Utilities must be installed and executable for their respective license server types to work.</small>
                         </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Add License Server</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="addServerForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="hostname" class="form-label">Hostname *</label>
+                                    <input type="text" class="form-control" id="hostname" name="hostname"
+                                           placeholder="27000@server.example.com" required>
+                                    <div class="form-text">Format: port@hostname</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="description" class="form-label">Description</label>
+                                    <input type="text" class="form-control" id="description" name="description"
+                                           placeholder="Production FlexLM Server">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="type" class="form-label">Server Type *</label>
+                                    <select class="form-select" id="type" name="type" required>
+                                        <option value="">Select type...</option>
+                                        <option value="flexlm">FlexLM</option>
+                                        <option value="rlm">RLM</option>
+                                        <option value="spm">SPM</option>
+                                        <option value="sesi">SESI</option>
+                                        <option value="rvl">RVL</option>
+                                        <option value="tweak">Tweak</option>
+                                        <option value="pixar">Pixar</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="webui" class="form-label">Web UI</label>
+                                    <input type="url" class="form-control" id="webui" name="webui"
+                                           placeholder="http://server:4000">
+                                    <div class="form-text">Optional: RLM web interface URL</div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="cacti_id" class="form-label">Cacti Graph ID</label>
+                                <input type="text" class="form-control" id="cacti_id" name="cacti_id"
+                                       placeholder="Optional">
+                            </div>
+                            <div id="alertMessage" class="alert" style="display:none;"></div>
+                            <button type="submit" class="btn btn-primary">Add Server</button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -124,5 +204,52 @@
     </div>
 
     <script src="/static/js/bootstrap.min.js"></script>
+    <script>
+        document.getElementById('addServerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const alertDiv = document.getElementById('alertMessage');
+            const formData = {
+                hostname: document.getElementById('hostname').value,
+                description: document.getElementById('description').value,
+                type: document.getElementById('type').value,
+                cacti_id: document.getElementById('cacti_id').value,
+                webui: document.getElementById('webui').value
+            };
+
+            try {
+                const response = await fetch('/api/v1/servers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    alertDiv.className = 'alert alert-success';
+                    alertDiv.textContent = 'Server added successfully! Refreshing page...';
+                    alertDiv.style.display = 'block';
+
+                    // Reset form
+                    document.getElementById('addServerForm').reset();
+
+                    // Reload page after 1.5 seconds to show updated server count
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    const errorText = await response.text();
+                    alertDiv.className = 'alert alert-danger';
+                    alertDiv.textContent = 'Error: ' + errorText;
+                    alertDiv.style.display = 'block';
+                }
+            } catch (error) {
+                alertDiv.className = 'alert alert-danger';
+                alertDiv.textContent = 'Error: ' + error.message;
+                alertDiv.style.display = 'block';
+            }
+        });
+    </script>
 </body>
 </html>

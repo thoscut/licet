@@ -38,18 +38,84 @@ func NewLicenseService(db *sqlx.DB, cfg *config.Config) *LicenseService {
 func (s *LicenseService) GetAllServers() ([]models.LicenseServer, error) {
 	var servers []models.LicenseServer
 
-	// Return configured servers from config
+	// Get servers from database
+	query := `SELECT * FROM servers ORDER BY hostname`
+	dbServers := []models.LicenseServer{}
+	if err := s.db.Select(&dbServers, query); err == nil {
+		servers = append(servers, dbServers...)
+	}
+
+	// Also include configured servers from config (for backward compatibility)
 	for _, srv := range s.cfg.Servers {
-		servers = append(servers, models.LicenseServer{
-			Hostname:    srv.Hostname,
-			Description: srv.Description,
-			Type:        srv.Type,
-			CactiID:     srv.CactiID,
-			WebUI:       srv.WebUI,
-		})
+		// Check if this server already exists in database
+		exists := false
+		for _, dbSrv := range servers {
+			if dbSrv.Hostname == srv.Hostname {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			servers = append(servers, models.LicenseServer{
+				Hostname:    srv.Hostname,
+				Description: srv.Description,
+				Type:        srv.Type,
+				CactiID:     srv.CactiID,
+				WebUI:       srv.WebUI,
+			})
+		}
 	}
 
 	return servers, nil
+}
+
+// AddServer adds a new license server to the database
+func (s *LicenseService) AddServer(server models.LicenseServer) error {
+	query := `
+		INSERT INTO servers (hostname, description, type, cacti_id, webui, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`
+	_, err := s.db.Exec(query,
+		server.Hostname,
+		server.Description,
+		server.Type,
+		server.CactiID,
+		server.WebUI,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to add server: %w", err)
+	}
+	return nil
+}
+
+// DeleteServer removes a license server from the database
+func (s *LicenseService) DeleteServer(hostname string) error {
+	query := `DELETE FROM servers WHERE hostname = ?`
+	_, err := s.db.Exec(query, hostname)
+	if err != nil {
+		return fmt.Errorf("failed to delete server: %w", err)
+	}
+	return nil
+}
+
+// UpdateServer updates an existing license server in the database
+func (s *LicenseService) UpdateServer(server models.LicenseServer) error {
+	query := `
+		UPDATE servers
+		SET description = ?, type = ?, cacti_id = ?, webui = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE hostname = ?
+	`
+	_, err := s.db.Exec(query,
+		server.Description,
+		server.Type,
+		server.CactiID,
+		server.WebUI,
+		server.Hostname,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update server: %w", err)
+	}
+	return nil
 }
 
 func (s *LicenseService) QueryServer(hostname, serverType string) (models.ServerQueryResult, error) {
