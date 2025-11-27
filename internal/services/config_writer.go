@@ -155,3 +155,80 @@ func (cw *ConfigWriter) DeleteServer(hostname string) error {
 
 	return nil
 }
+
+// UpdateEmailSettings updates email configuration in the config file
+func (cw *ConfigWriter) UpdateEmailSettings(enabled bool, from string, to []string, smtpHost string, smtpPort int, username, password string) error {
+	data, err := os.ReadFile(cw.configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var configData map[string]interface{}
+	if err := yaml.Unmarshal(data, &configData); err != nil {
+		return fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	// Update email section
+	emailConfig := map[string]interface{}{
+		"enabled":   enabled,
+		"from":      from,
+		"to":        to,
+		"smtp_host": smtpHost,
+		"smtp_port": smtpPort,
+	}
+
+	if username != "" {
+		emailConfig["username"] = username
+	}
+	if password != "" {
+		emailConfig["password"] = password
+	}
+
+	configData["email"] = emailConfig
+
+	// Write back to file
+	output, err := yaml.Marshal(configData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(cw.configPath, output, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateAlertSettings updates alert configuration in the config file
+func (cw *ConfigWriter) UpdateAlertSettings(enabled bool, leadTimeDays, resendIntervalMin int) error {
+	data, err := os.ReadFile(cw.configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var configData map[string]interface{}
+	if err := yaml.Unmarshal(data, &configData); err != nil {
+		return fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	// Update alerts section
+	alertConfig := map[string]interface{}{
+		"enabled":             enabled,
+		"lead_time_days":      leadTimeDays,
+		"resend_interval_min": resendIntervalMin,
+	}
+
+	configData["alerts"] = alertConfig
+
+	// Write back to file
+	output, err := yaml.Marshal(configData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(cw.configPath, output, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}

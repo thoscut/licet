@@ -79,19 +79,51 @@
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0">License Server Types</h5>
+                        <h5 class="mb-0">Application Health</h5>
                     </div>
                     <div class="card-body">
-                        <p>Supported license server types:</p>
-                        <ul>
-                            <li>FlexLM</li>
-                            <li>RLM (Reprise License Manager)</li>
-                            <li>SESI (Side Effects Software)</li>
-                            <li>Tweak Software</li>
-                            <li>Pixar</li>
-                            <li>SPM (Sentinel Protection Manager)</li>
-                            <li>RVL (RE:Vision Effects)</li>
-                        </ul>
+                        <div id="healthStatus">
+                            <p><span class="spinner-border spinner-border-sm" role="status"></span> Checking...</p>
+                        </div>
+                        <button class="btn btn-sm btn-secondary" onclick="checkHealth()">Refresh Health</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Configured License Servers</h5>
+                    </div>
+                    <div class="card-body">
+                        {{if .Servers}}
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Hostname</th>
+                                    <th>Description</th>
+                                    <th>Type</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range .Servers}}
+                                <tr>
+                                    <td><code>{{.Hostname}}</code></td>
+                                    <td>{{.Description}}</td>
+                                    <td><span class="badge bg-info">{{.Type}}</span></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteServer('{{.Hostname}}')">Delete</button>
+                                    </td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                        {{else}}
+                        <p class="text-muted">No servers configured. Add one below.</p>
+                        {{end}}
                     </div>
                 </div>
             </div>
@@ -191,6 +223,107 @@
                             </div>
                             <div id="alertMessage" class="alert" style="display:none;"></div>
                             <button type="submit" class="btn btn-primary">Add Server</button>
+                            <button type="button" class="btn btn-secondary ms-2" onclick="testConnection()">Test Connection</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Email Settings</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <strong>Note:</strong> Email settings are stored in <code>config.yaml</code>. The application must be restarted for changes to take effect.
+                        </div>
+                        <form id="emailSettingsForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="emailEnabled" {{if .EmailConfig.Enabled}}checked{{end}}>
+                                        <label class="form-check-label" for="emailEnabled">
+                                            Enable Email Notifications
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="emailFrom" class="form-label">From Address</label>
+                                    <input type="email" class="form-control" id="emailFrom" value="{{.EmailConfig.From}}" placeholder="licensing@example.com">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="emailTo" class="form-label">To Addresses (comma-separated)</label>
+                                    <input type="text" class="form-control" id="emailTo" value="{{range $i, $e := .EmailConfig.To}}{{if $i}},{{end}}{{$e}}{{end}}" placeholder="admin@example.com,ops@example.com">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="smtpHost" class="form-label">SMTP Host</label>
+                                    <input type="text" class="form-control" id="smtpHost" value="{{.EmailConfig.SMTPHost}}" placeholder="smtp.example.com">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="smtpPort" class="form-label">SMTP Port</label>
+                                    <input type="number" class="form-control" id="smtpPort" value="{{.EmailConfig.SMTPPort}}" placeholder="587">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="smtpUsername" class="form-label">SMTP Username (optional)</label>
+                                    <input type="text" class="form-control" id="smtpUsername" value="{{.EmailConfig.Username}}" placeholder="username">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="smtpPassword" class="form-label">SMTP Password (optional)</label>
+                                    <input type="password" class="form-control" id="smtpPassword" value="{{.EmailConfig.Password}}" placeholder="password">
+                                </div>
+                            </div>
+                            <div id="emailAlertMessage" class="alert" style="display:none;"></div>
+                            <button type="submit" class="btn btn-primary">Save Email Settings</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Alert Settings</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <strong>Note:</strong> Alert settings are stored in <code>config.yaml</code>. The application must be restarted for changes to take effect.
+                        </div>
+                        <form id="alertSettingsForm">
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="alertsEnabled" {{if .AlertConfig.Enabled}}checked{{end}}>
+                                        <label class="form-check-label" for="alertsEnabled">
+                                            Enable License Expiration Alerts
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="leadTimeDays" class="form-label">Lead Time (days)</label>
+                                    <input type="number" class="form-control" id="leadTimeDays" value="{{.AlertConfig.LeadTimeDays}}" placeholder="10">
+                                    <div class="form-text">Warn this many days before license expiration</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="resendInterval" class="form-label">Resend Interval (minutes)</label>
+                                    <input type="number" class="form-control" id="resendInterval" value="{{.AlertConfig.ResendIntervalMin}}" placeholder="60">
+                                    <div class="form-text">Wait this long before sending duplicate alerts</div>
+                                </div>
+                            </div>
+                            <div id="alertSettingsAlertMessage" class="alert" style="display:none;"></div>
+                            <button type="submit" class="btn btn-primary">Save Alert Settings</button>
                         </form>
                     </div>
                 </div>
@@ -208,6 +341,90 @@
 
     <script src="/static/js/bootstrap.min.js"></script>
     <script>
+        // Check health on page load
+        window.addEventListener('load', checkHealth);
+
+        async function checkHealth() {
+            const statusDiv = document.getElementById('healthStatus');
+            try {
+                const response = await fetch('/api/v1/health');
+                const data = await response.json();
+
+                if (response.ok) {
+                    statusDiv.innerHTML = `
+                        <p><span class="badge bg-success">Healthy</span></p>
+                        <small class="text-muted">Status: ${data.status}</small>
+                    `;
+                } else {
+                    statusDiv.innerHTML = `<p><span class="badge bg-danger">Unhealthy</span></p>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<p><span class="badge bg-danger">Error</span> ${error.message}</p>`;
+            }
+        }
+
+        async function deleteServer(hostname) {
+            if (!confirm('Are you sure you want to delete server: ' + hostname + '?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v1/servers?hostname=' + encodeURIComponent(hostname), {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    const errorText = await response.text();
+                    alert('Error: ' + errorText);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function testConnection() {
+            const alertDiv = document.getElementById('alertMessage');
+            const formData = {
+                hostname: document.getElementById('hostname').value,
+                type: document.getElementById('type').value
+            };
+
+            if (!formData.hostname || !formData.type) {
+                alertDiv.className = 'alert alert-warning';
+                alertDiv.textContent = 'Please enter hostname and type first';
+                alertDiv.style.display = 'block';
+                return;
+            }
+
+            alertDiv.className = 'alert alert-info';
+            alertDiv.textContent = 'Testing connection...';
+            alertDiv.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/v1/servers/test', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alertDiv.className = 'alert alert-success';
+                    alertDiv.innerHTML = '<strong>Success!</strong> ' + data.message;
+                } else {
+                    alertDiv.className = 'alert alert-danger';
+                    alertDiv.innerHTML = '<strong>Failed!</strong> ' + data.message;
+                }
+            } catch (error) {
+                alertDiv.className = 'alert alert-danger';
+                alertDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+
         document.getElementById('addServerForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -223,9 +440,7 @@
             try {
                 const response = await fetch('/api/v1/servers', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(formData)
                 });
 
@@ -234,9 +449,84 @@
                     alertDiv.className = 'alert alert-success';
                     alertDiv.innerHTML = '<strong>Success!</strong> ' + data.message;
                     alertDiv.style.display = 'block';
-
-                    // Reset form
                     document.getElementById('addServerForm').reset();
+                } else {
+                    const errorText = await response.text();
+                    alertDiv.className = 'alert alert-danger';
+                    alertDiv.textContent = 'Error: ' + errorText;
+                    alertDiv.style.display = 'block';
+                }
+            } catch (error) {
+                alertDiv.className = 'alert alert-danger';
+                alertDiv.textContent = 'Error: ' + error.message;
+                alertDiv.style.display = 'block';
+            }
+        });
+
+        document.getElementById('emailSettingsForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const alertDiv = document.getElementById('emailAlertMessage');
+            const emailTo = document.getElementById('emailTo').value;
+            const toArray = emailTo ? emailTo.split(',').map(s => s.trim()) : [];
+
+            const formData = {
+                enabled: document.getElementById('emailEnabled').checked,
+                from: document.getElementById('emailFrom').value,
+                to: toArray,
+                smtp_host: document.getElementById('smtpHost').value,
+                smtp_port: parseInt(document.getElementById('smtpPort').value) || 587,
+                username: document.getElementById('smtpUsername').value,
+                password: document.getElementById('smtpPassword').value
+            };
+
+            try {
+                const response = await fetch('/api/v1/settings/email', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alertDiv.className = 'alert alert-success';
+                    alertDiv.innerHTML = '<strong>Success!</strong> ' + data.message;
+                    alertDiv.style.display = 'block';
+                } else {
+                    const errorText = await response.text();
+                    alertDiv.className = 'alert alert-danger';
+                    alertDiv.textContent = 'Error: ' + errorText;
+                    alertDiv.style.display = 'block';
+                }
+            } catch (error) {
+                alertDiv.className = 'alert alert-danger';
+                alertDiv.textContent = 'Error: ' + error.message;
+                alertDiv.style.display = 'block';
+            }
+        });
+
+        document.getElementById('alertSettingsForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const alertDiv = document.getElementById('alertSettingsAlertMessage');
+            const formData = {
+                enabled: document.getElementById('alertsEnabled').checked,
+                lead_time_days: parseInt(document.getElementById('leadTimeDays').value) || 10,
+                resend_interval_min: parseInt(document.getElementById('resendInterval').value) || 60
+            };
+
+            try {
+                const response = await fetch('/api/v1/settings/alerts', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alertDiv.className = 'alert alert-success';
+                    alertDiv.innerHTML = '<strong>Success!</strong> ' + data.message;
+                    alertDiv.style.display = 'block';
                 } else {
                     const errorText = await response.text();
                     alertDiv.className = 'alert alert-danger';

@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	log "github.com/sirupsen/logrus"
+	"github.com/thoscut/licet/internal/config"
 	"github.com/thoscut/licet/internal/services"
 	"github.com/thoscut/licet/web"
 )
@@ -13,16 +14,18 @@ import (
 type WebHandler struct {
 	licenseService *services.LicenseService
 	alertService   *services.AlertService
+	cfg            *config.Config
 	templates      *template.Template
 }
 
-func NewWebHandler(licenseService *services.LicenseService, alertService *services.AlertService) *WebHandler {
+func NewWebHandler(licenseService *services.LicenseService, alertService *services.AlertService, cfg *config.Config) *WebHandler {
 	// Load templates from embedded filesystem via web package
 	tmpl := web.LoadTemplates()
 
 	return &WebHandler{
 		licenseService: licenseService,
 		alertService:   alertService,
+		cfg:            cfg,
 		templates:      tmpl,
 	}
 }
@@ -135,10 +138,13 @@ func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
 
 	data := map[string]interface{}{
 		"Title":        "Application Settings",
-		"ServerPort":   "8080",
-		"DatabaseType": "SQLite",
+		"ServerPort":   h.cfg.Server.Port,
+		"DatabaseType": h.cfg.Database.Type,
 		"TotalServers": len(servers),
+		"Servers":      servers,
 		"Utilities":    utilities,
+		"EmailConfig":  h.cfg.Email,
+		"AlertConfig":  h.cfg.Alerts,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "settings.html", data); err != nil {

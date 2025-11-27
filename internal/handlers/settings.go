@@ -89,3 +89,107 @@ func CheckUtilities() http.HandlerFunc {
 		})
 	}
 }
+
+// TestServerConnection handles POST /api/v1/servers/test - tests connection to a license server
+func TestServerConnection(licenseService *services.LicenseService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Hostname string `json:"hostname"`
+			Type     string `json:"type"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if req.Hostname == "" || req.Type == "" {
+			http.Error(w, "Hostname and type are required", http.StatusBadRequest)
+			return
+		}
+
+		// Try to query the server
+		result, err := licenseService.QueryServer(req.Hostname, req.Type)
+
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil || result.Error != nil {
+			errorMsg := "Connection failed"
+			if err != nil {
+				errorMsg = err.Error()
+			} else if result.Error != nil {
+				errorMsg = result.Error.Error()
+			}
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": errorMsg,
+			})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Connection successful",
+			"status":  result.Status,
+		})
+	}
+}
+
+// UpdateEmailSettings handles POST /api/v1/settings/email - updates email configuration
+func UpdateEmailSettings() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var emailConfig struct {
+			Enabled  bool     `json:"enabled"`
+			From     string   `json:"from"`
+			To       []string `json:"to"`
+			SMTPHost string   `json:"smtp_host"`
+			SMTPPort int      `json:"smtp_port"`
+			Username string   `json:"username"`
+			Password string   `json:"password"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&emailConfig); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		configWriter := services.NewConfigWriter()
+		if err := configWriter.UpdateEmailSettings(emailConfig.Enabled, emailConfig.From, emailConfig.To,
+			emailConfig.SMTPHost, emailConfig.SMTPPort, emailConfig.Username, emailConfig.Password); err != nil {
+			http.Error(w, "Failed to update email settings: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "Email settings updated successfully. Please restart the application for changes to take effect.",
+		})
+	}
+}
+
+// UpdateAlertSettings handles POST /api/v1/settings/alerts - updates alert configuration
+func UpdateAlertSettings() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var alertConfig struct {
+			Enabled           bool `json:"enabled"`
+			LeadTimeDays      int  `json:"lead_time_days"`
+			ResendIntervalMin int  `json:"resend_interval_min"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&alertConfig); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		configWriter := services.NewConfigWriter()
+		if err := configWriter.UpdateAlertSettings(alertConfig.Enabled, alertConfig.LeadTimeDays, alertConfig.ResendIntervalMin); err != nil {
+			http.Error(w, "Failed to update alert settings: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "Alert settings updated successfully. Please restart the application for changes to take effect.",
+		})
+	}
+}
