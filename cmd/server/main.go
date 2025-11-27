@@ -148,8 +148,8 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/servers", handlers.ListServers(licenseService))
-		r.Post("/servers", handlers.AddServer(licenseService))
-		r.Delete("/servers", handlers.DeleteServer(licenseService))
+		r.Post("/servers", handlers.AddServer())
+		r.Delete("/servers", handlers.DeleteServer())
 		r.Get("/servers/{server}/status", handlers.GetServerStatus(licenseService))
 		r.Get("/servers/{server}/features", handlers.GetServerFeatures(licenseService))
 		r.Get("/servers/{server}/users", handlers.GetServerUsers(licenseService))

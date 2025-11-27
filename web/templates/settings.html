@@ -146,6 +146,9 @@
                         <h5 class="mb-0">Add License Server</h5>
                     </div>
                     <div class="card-body">
+                        <div class="alert alert-info">
+                            <strong>Note:</strong> Servers are stored in <code>config.yaml</code>. The application must be restarted for changes to take effect.
+                        </div>
                         <form id="addServerForm">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -227,17 +230,13 @@
                 });
 
                 if (response.ok) {
+                    const data = await response.json();
                     alertDiv.className = 'alert alert-success';
-                    alertDiv.textContent = 'Server added successfully! Refreshing page...';
+                    alertDiv.innerHTML = '<strong>Success!</strong> ' + data.message;
                     alertDiv.style.display = 'block';
 
                     // Reset form
                     document.getElementById('addServerForm').reset();
-
-                    // Reload page after 1.5 seconds to show updated server count
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
                 } else {
                     const errorText = await response.text();
                     alertDiv.className = 'alert alert-danger';
