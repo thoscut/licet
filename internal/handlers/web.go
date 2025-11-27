@@ -121,3 +121,22 @@ func (h *WebHandler) Alerts(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Template error", http.StatusInternalServerError)
 	}
 }
+
+func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
+	servers, err := h.licenseService.GetAllServers()
+	if err != nil {
+		http.Error(w, "Failed to get servers", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]interface{}{
+		"Title":        "Application Settings",
+		"ServerPort":   "8080",
+		"DatabaseType": "SQLite",
+		"TotalServers": len(servers),
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "settings.html", data); err != nil {
+		http.Error(w, "Template error", http.StatusInternalServerError)
+	}
+}
