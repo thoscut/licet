@@ -14,6 +14,7 @@ import (
 	"github.com/thoscut/licet/internal/handlers"
 	"github.com/thoscut/licet/internal/scheduler"
 	"github.com/thoscut/licet/internal/services"
+	"github.com/thoscut/licet/web"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -129,8 +130,9 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 		MaxAge:           300,
 	}))
 
-	// Static files
-	fileServer := http.FileServer(http.Dir("./web/static"))
+	// Static files from embedded filesystem
+	staticFS := web.GetStaticFS()
+	fileServer := http.FileServer(http.FS(staticFS))
 	r.Handle("/static/*", http.StripPrefix("/static/", fileServer))
 
 	// Web handlers
