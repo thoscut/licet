@@ -18,11 +18,11 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
         <div class="container">
             <a class="navbar-brand" href="/">Licet (Go)</a>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ml-auto">
+                <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="/">Home</a>
                     </li>
@@ -67,11 +67,11 @@
                     <td>{{.DaysToExpiration}}</td>
                     <td>
                         {{if lt .DaysToExpiration 0}}
-                        <span class="badge badge-danger">Expired</span>
+                        <span class="badge bg-danger">Expired</span>
                         {{else if lt .DaysToExpiration 30}}
-                        <span class="badge badge-warning">Expiring Soon</span>
+                        <span class="badge bg-warning">Expiring Soon</span>
                         {{else}}
-                        <span class="badge badge-success">Valid</span>
+                        <span class="badge bg-success">Valid</span>
                         {{end}}
                     </td>
                 </tr>
@@ -93,7 +93,6 @@
         </footer>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="/static/js/bootstrap.min.js"></script>
 </body>
 </html>
