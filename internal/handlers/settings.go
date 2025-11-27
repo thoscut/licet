@@ -9,14 +9,8 @@ import (
 )
 
 // AddServer handles POST /api/v1/servers - adds a new license server to config file
-func AddServer(cfg *config.Config) http.HandlerFunc {
+func AddServer() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Check if settings page is enabled
-		if !cfg.Server.SettingsEnabled {
-			http.Error(w, "Settings page is disabled", http.StatusForbidden)
-			return
-		}
-
 		var server config.LicenseServer
 		if err := json.NewDecoder(r.Body).Decode(&server); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -61,14 +55,8 @@ func AddServer(cfg *config.Config) http.HandlerFunc {
 }
 
 // DeleteServer handles DELETE /api/v1/servers - removes a license server from config file
-func DeleteServer(cfg *config.Config) http.HandlerFunc {
+func DeleteServer() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Check if settings page is enabled
-		if !cfg.Server.SettingsEnabled {
-			http.Error(w, "Settings page is disabled", http.StatusForbidden)
-			return
-		}
-
 		hostname := r.URL.Query().Get("hostname")
 		if hostname == "" {
 			http.Error(w, "Hostname is required", http.StatusBadRequest)
@@ -103,14 +91,8 @@ func CheckUtilities() http.HandlerFunc {
 }
 
 // TestServerConnection handles POST /api/v1/servers/test - tests connection to a license server
-func TestServerConnection(cfg *config.Config, licenseService *services.LicenseService) http.HandlerFunc {
+func TestServerConnection(licenseService *services.LicenseService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Check if settings page is enabled
-		if !cfg.Server.SettingsEnabled {
-			http.Error(w, "Settings page is disabled", http.StatusForbidden)
-			return
-		}
-
 		var req struct {
 			Hostname string `json:"hostname"`
 			Type     string `json:"type"`
@@ -154,14 +136,8 @@ func TestServerConnection(cfg *config.Config, licenseService *services.LicenseSe
 }
 
 // UpdateEmailSettings handles POST /api/v1/settings/email - updates email configuration
-func UpdateEmailSettings(cfg *config.Config) http.HandlerFunc {
+func UpdateEmailSettings() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Check if settings page is enabled
-		if !cfg.Server.SettingsEnabled {
-			http.Error(w, "Settings page is disabled", http.StatusForbidden)
-			return
-		}
-
 		var emailConfig struct {
 			Enabled  bool     `json:"enabled"`
 			From     string   `json:"from"`
@@ -192,14 +168,8 @@ func UpdateEmailSettings(cfg *config.Config) http.HandlerFunc {
 }
 
 // UpdateAlertSettings handles POST /api/v1/settings/alerts - updates alert configuration
-func UpdateAlertSettings(cfg *config.Config) http.HandlerFunc {
+func UpdateAlertSettings() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Check if settings page is enabled
-		if !cfg.Server.SettingsEnabled {
-			http.Error(w, "Settings page is disabled", http.StatusForbidden)
-			return
-		}
-
 		var alertConfig struct {
 			Enabled           bool `json:"enabled"`
 			LeadTimeDays      int  `json:"lead_time_days"`
