@@ -136,22 +136,29 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 	r.Handle("/static/*", http.StripPrefix("/static/", fileServer))
 
 	// Web handlers
-	webHandler := handlers.NewWebHandler(licenseService, alertService)
+	webHandler := handlers.NewWebHandler(licenseService, alertService, cfg)
 	r.Get("/", webHandler.Index)
 	r.Get("/details/{server}", webHandler.Details)
 	r.Get("/expiration/{server}", webHandler.Expiration)
 	r.Get("/utilization", webHandler.Utilization)
 	r.Get("/denials", webHandler.Denials)
 	r.Get("/alerts", webHandler.Alerts)
+	r.Get("/settings", webHandler.Settings)
 
 	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/servers", handlers.ListServers(licenseService))
+		r.Post("/servers", handlers.AddServer(cfg))
+		r.Delete("/servers", handlers.DeleteServer(cfg))
+		r.Post("/servers/test", handlers.TestServerConnection(cfg, licenseService))
 		r.Get("/servers/{server}/status", handlers.GetServerStatus(licenseService))
 		r.Get("/servers/{server}/features", handlers.GetServerFeatures(licenseService))
 		r.Get("/servers/{server}/users", handlers.GetServerUsers(licenseService))
 		r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(licenseService))
 		r.Get("/alerts", handlers.GetAlerts(alertService))
+		r.Get("/utilities/check", handlers.CheckUtilities())
+		r.Post("/settings/email", handlers.UpdateEmailSettings(cfg))
+		r.Post("/settings/alerts", handlers.UpdateAlertSettings(cfg))
 		r.Get("/health", handlers.Health())
 	})
 

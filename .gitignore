@@ -2,6 +2,7 @@ rrd/*
 
 # Go build artifacts
 build/
+/server
 *.exe
 *.exe~
 *.dll
