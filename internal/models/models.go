@@ -112,29 +112,29 @@ type ServerQueryResult struct {
 
 // UtilizationData represents current utilization for a feature
 type UtilizationData struct {
-	ServerHostname    string  `json:"server_hostname"`
-	FeatureName       string  `json:"feature_name"`
-	TotalLicenses     int     `json:"total_licenses"`
-	UsedLicenses      int     `json:"used_licenses"`
-	AvailableLicenses int     `json:"available_licenses"`
-	UtilizationPct    float64 `json:"utilization_pct"`
-	VendorDaemon      string  `json:"vendor_daemon"`
+	ServerHostname    string  `json:"server_hostname" db:"server_hostname"`
+	FeatureName       string  `json:"feature_name" db:"feature_name"`
+	TotalLicenses     int     `json:"total_licenses" db:"total_licenses"`
+	UsedLicenses      int     `json:"used_licenses" db:"used_licenses"`
+	AvailableLicenses int     `json:"available_licenses" db:"available_licenses"`
+	UtilizationPct    float64 `json:"utilization_pct" db:"utilization_pct"`
+	VendorDaemon      string  `json:"vendor_daemon" db:"vendor_daemon"`
 }
 
 // UtilizationHistoryPoint represents a single data point in utilization history
 type UtilizationHistoryPoint struct {
-	Timestamp  string `json:"timestamp"`
-	UsersCount int    `json:"users_count"`
+	Timestamp  string `json:"timestamp" db:"timestamp"`
+	UsersCount int    `json:"users_count" db:"users_count"`
 }
 
 // UtilizationStats represents aggregated statistics for a feature
 type UtilizationStats struct {
-	ServerHostname string  `json:"server_hostname"`
-	FeatureName    string  `json:"feature_name"`
-	AvgUsage       float64 `json:"avg_usage"`
-	PeakUsage      int     `json:"peak_usage"`
-	MinUsage       int     `json:"min_usage"`
-	TotalLicenses  int     `json:"total_licenses"`
+	ServerHostname string  `json:"server_hostname" db:"server_hostname"`
+	FeatureName    string  `json:"feature_name" db:"feature_name"`
+	AvgUsage       float64 `json:"avg_usage" db:"avg_usage"`
+	PeakUsage      int     `json:"peak_usage" db:"peak_usage"`
+	MinUsage       int     `json:"min_usage" db:"min_usage"`
+	TotalLicenses  int     `json:"total_licenses" db:"total_licenses"`
 }
 
 // HeatmapData represents hour-of-day usage patterns for heatmap visualization
@@ -146,9 +146,9 @@ type HeatmapData struct {
 
 // HeatmapHourly represents usage data for a specific hour
 type HeatmapHourly struct {
-	Hour      int     `json:"hour"`      // 0-23
-	AvgUsage  float64 `json:"avg_usage"`
-	PeakUsage int     `json:"peak_usage"`
+	Hour      int     `json:"hour" db:"hour"`           // 0-23
+	AvgUsage  float64 `json:"avg_usage" db:"avg_usage"`
+	PeakUsage int     `json:"peak_usage" db:"peak_usage"`
 }
 
 // PredictiveAnalytics represents forecast data for a feature
