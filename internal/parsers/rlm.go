@@ -65,10 +65,10 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 	statusRe := regexp.MustCompile(`rlm status on\s+([^\s]+)`)
 	versionRe := regexp.MustCompile(`rlm software version v([\d\.]+)`)
 	isvStatusRe := regexp.MustCompile(`^(\w+)\s+\d+\s+(\w+)\s+\d+`)
-	featureHeaderRe := regexp.MustCompile(`^([\w\+]+)\s+(v[\d\.]+|[\w\d][\d\.]+)`)
+	featureHeaderRe := regexp.MustCompile(`^([\w\+]+)\s+(v[\d\.]+|[\w\d][\d\.]+)$`)
 	featureLicenseRe := regexp.MustCompile(`^count:\s+(\d+)[,\s]+.*inuse:\s+(\d+)[,\s]+.*exp:\s+(\d+-\w+-\d{4}|\w+)`)
 	uncountedLicenseRe := regexp.MustCompile(`^UNCOUNTED[,\s]+.*inuse:\s+(\d+)(?:[,\s]+.*exp:\s+(\d+-\w+-\d{4}|\w+))?`)
-	userRe := regexp.MustCompile(`^([\w\+]+)\s+v[\d\.]+\s+([\w\.\-]+@[\w\-]+)\s+\d+\.\d+\s+\w+\s+(\d+\/\d+\s+\d+:\d+)`)
+	userRe := regexp.MustCompile(`^([\w\+]+)\s+v[\d\.]+:\s+([\w\.\-]+@[\w\-]+)\s+\d+\/\d+\s+at\s+(\d+\/\d+\s+\d+:\d+)`)
 
 	currentFeature := ""
 	currentVersion := ""
