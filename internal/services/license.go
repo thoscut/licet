@@ -154,6 +154,22 @@ func (s *LicenseService) GetFeatures(hostname string) ([]models.Feature, error) 
 	return features, err
 }
 
+// GetFeaturesWithExpiration returns features that have expiration dates, deduplicated
+func (s *LicenseService) GetFeaturesWithExpiration(hostname string) ([]models.Feature, error) {
+	var features []models.Feature
+	query := `
+		SELECT id, server_hostname, name, version, vendor_daemon,
+		       total_licenses, used_licenses, expiration_date, last_updated
+		FROM features
+		WHERE server_hostname = ?
+		  AND expiration_date IS NOT NULL
+		GROUP BY server_hostname, name, version, expiration_date
+		ORDER BY expiration_date ASC, name ASC
+	`
+	err := s.db.Select(&features, query, hostname)
+	return features, err
+}
+
 func (s *LicenseService) GetExpiringFeatures(days int) ([]models.Feature, error) {
 	var features []models.Feature
 	cutoff := time.Now().AddDate(0, 0, days)

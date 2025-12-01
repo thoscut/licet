@@ -141,7 +141,8 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 func (h *WebHandler) Expiration(w http.ResponseWriter, r *http.Request) {
 	hostname := chi.URLParam(r, "server")
 
-	features, err := h.licenseService.GetFeatures(hostname)
+	// Use the specialized method that filters for features with expiration dates
+	features, err := h.licenseService.GetFeaturesWithExpiration(hostname)
 	if err != nil {
 		http.Error(w, "Failed to get features", http.StatusInternalServerError)
 		return
