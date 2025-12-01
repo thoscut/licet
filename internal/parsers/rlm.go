@@ -65,10 +65,19 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 	statusRe := regexp.MustCompile(`rlm status on\s+([^\s]+)`)
 	versionRe := regexp.MustCompile(`rlm software version v([\d\.]+)`)
 	isvStatusRe := regexp.MustCompile(`^(\w+)\s+\d+\s+(\w+)\s+\d+`)
-	featureHeaderRe := regexp.MustCompile(`^([\w\+]+)\s+(v[\d\.]+|[\w\d][\d\.]+)$`)
+	featureHeaderRe := regexp.MustCompile(`^([\w\+]+)\s+(v[\d\.]+|[\w\d][\d\.]+)(?:\s.*)?$`)
 	featureLicenseRe := regexp.MustCompile(`^count:\s+(\d+)[,\s]+.*inuse:\s+(\d+)[,\s]+.*exp:\s+(\d+-\w+-\d{4}|\w+)`)
 	uncountedLicenseRe := regexp.MustCompile(`^UNCOUNTED[,\s]+.*inuse:\s+(\d+)(?:[,\s]+.*exp:\s+(\d+-\w+-\d{4}|\w+))?`)
 	userRe := regexp.MustCompile(`^([\w\+]+)\s+v[\d\.]+:\s+([\w\.\-]+@[\w\-]+)\s+\d+\/\d+\s+at\s+(\d+\/\d+\s+\d+:\d+)`)
+
+	// List of known utility/command names that should not be treated as features
+	excludedNames := map[string]bool{
+		"rlm":      true,
+		"rlmutil":  true,
+		"rlmstat":  true,
+		"rlmdown":  true,
+		"rlmreread": true,
+	}
 
 	currentFeature := ""
 	currentVersion := ""
@@ -99,7 +108,15 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 		}
 
 		if matches := featureHeaderRe.FindStringSubmatch(line); matches != nil {
-			currentFeature = matches[1]
+			featureName := matches[1]
+			// Skip known utility/command names
+			if excludedNames[featureName] {
+				log.Debugf("Skipping excluded name '%s' from feature list", featureName)
+				currentFeature = ""
+				currentVersion = ""
+				continue
+			}
+			currentFeature = featureName
 			currentVersion = matches[2]
 			continue
 		}
