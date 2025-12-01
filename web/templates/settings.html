@@ -10,6 +10,10 @@
         .status-up { background-color: #d4edda; }
         .status-down { background-color: #f8d7da; }
         .status-warning { background-color: #fff3cd; }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -135,8 +139,11 @@
         <div class="row mt-4">
             <div class="col-md-12">
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">License Server Utilities Status</h5>
+                        <button class="btn btn-sm btn-secondary" onclick="refreshUtilities()">
+                            <span id="refreshIcon">🔄</span> Refresh
+                        </button>
                     </div>
                     <div class="card-body">
                         <p>Status of installed license server binaries:</p>
@@ -346,6 +353,18 @@
     <script>
         // Check health on page load
         window.addEventListener('load', checkHealth);
+
+        function refreshUtilities() {
+            const icon = document.getElementById('refreshIcon');
+            // Add spinning animation
+            icon.style.display = 'inline-block';
+            icon.style.animation = 'spin 1s linear';
+
+            // Reload the page to refresh utilities status
+            setTimeout(() => {
+                location.reload();
+            }, 300);
+        }
 
         async function checkHealth() {
             const statusDiv = document.getElementById('healthStatus');

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 )
 
 // UtilityStatus represents the status of a license utility binary
@@ -43,6 +44,11 @@ func (uc *UtilityChecker) CheckAll() []UtilityStatus {
 		status := uc.checkUtility(name, path)
 		statuses = append(statuses, status)
 	}
+
+	// Sort utilities alphabetically by name
+	sort.Slice(statuses, func(i, j int) bool {
+		return statuses[i].Name < statuses[j].Name
+	})
 
 	return statuses
 }
