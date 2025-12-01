@@ -235,3 +235,33 @@ func GetUtilizationHeatmap(licenseService *services.LicenseService) http.Handler
 		})
 	}
 }
+
+// GetPredictiveAnalytics returns predictive analytics and anomaly detection
+func GetPredictiveAnalytics(licenseService *services.LicenseService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		server := r.URL.Query().Get("server")
+		feature := r.URL.Query().Get("feature")
+		daysStr := r.URL.Query().Get("days")
+
+		if server == "" || feature == "" {
+			http.Error(w, "server and feature parameters required", http.StatusBadRequest)
+			return
+		}
+
+		days := 30 // Default to 30 days for predictions
+		if daysStr != "" {
+			if d, err := strconv.Atoi(daysStr); err == nil {
+				days = d
+			}
+		}
+
+		analytics, err := licenseService.GetPredictiveAnalytics(server, feature, days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(analytics)
+	}
+}

@@ -150,3 +150,31 @@ type HeatmapHourly struct {
 	AvgUsage  float64 `json:"avg_usage"`
 	PeakUsage int     `json:"peak_usage"`
 }
+
+// PredictiveAnalytics represents forecast data for a feature
+type PredictiveAnalytics struct {
+	ServerHostname  string              `json:"server_hostname"`
+	FeatureName     string              `json:"feature_name"`
+	TotalLicenses   int                 `json:"total_licenses"`
+	CurrentUsage    float64             `json:"current_usage"`
+	TrendSlope      float64             `json:"trend_slope"`      // Licenses per day
+	DaysToCapacity  int                 `json:"days_to_capacity"` // -1 if decreasing or no risk
+	ConfidenceLevel float64             `json:"confidence_level"` // 0.0 to 1.0
+	Forecast        []ForecastPoint     `json:"forecast"`
+	Anomalies       []AnomalyDetection  `json:"anomalies"`
+}
+
+// ForecastPoint represents a single prediction point
+type ForecastPoint struct {
+	Date          string  `json:"date"`
+	PredictedUsage float64 `json:"predicted_usage"`
+}
+
+// AnomalyDetection represents detected anomalies in usage patterns
+type AnomalyDetection struct {
+	Date      string  `json:"date"`
+	Usage     int     `json:"usage"`
+	Expected  float64 `json:"expected"`
+	Deviation float64 `json:"deviation"` // Standard deviations from mean
+	Severity  string  `json:"severity"`  // low, medium, high
+}
