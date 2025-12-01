@@ -3,6 +3,7 @@ rrd/*
 # Go build artifacts
 build/
 /server
+/licet
 *.exe
 *.exe~
 *.dll
