@@ -23,13 +23,13 @@ func NewUtilityChecker() *UtilityChecker {
 	binPaths := GetDefaultBinaryPaths()
 	return &UtilityChecker{
 		binaries: map[string]string{
-			"FlexLM (lmutil)":      binPaths["lmutil"],
-			"RLM (rlmutil)":        binPaths["rlmstat"],
-			"SPM (spmstat)":        binPaths["spmstat"],
-			"SESI (sesictrl)":      binPaths["sesictrl"],
-			"RVL (rvlstatus)":      binPaths["rvlstatus"],
-			"Tweak (tlm_server)":   binPaths["tlm_server"],
-			"Pixar (pixar_query)":  binPaths["pixar_query"],
+			"FlexLM (lmutil)":     binPaths["lmutil"],
+			"RLM (rlmutil)":       binPaths["rlmstat"],
+			"SPM (spmstat)":       binPaths["spmstat"],
+			"SESI (sesictrl)":     binPaths["sesictrl"],
+			"RVL (rvlstatus)":     binPaths["rvlstatus"],
+			"Tweak (tlm_server)":  binPaths["tlm_server"],
+			"Pixar (pixar_query)": binPaths["pixar_query"],
 		},
 	}
 }
