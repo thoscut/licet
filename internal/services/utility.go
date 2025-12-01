@@ -3,6 +3,7 @@ package services
 import (
 	"os"
 	"os/exec"
+	"runtime"
 )
 
 // UtilityStatus represents the status of a license utility binary
@@ -71,10 +72,14 @@ func (uc *UtilityChecker) checkUtility(name, path string) UtilityStatus {
 		return status
 	}
 
-	// Check if it's executable
-	if info.Mode()&0111 == 0 {
-		status.Message = "Not executable (check permissions)"
-		return status
+	// Check if it's executable (Unix/Linux only)
+	// On Windows, executability is determined by file extension (.exe, .bat, .cmd)
+	// not by permission bits, so we skip this check
+	if runtime.GOOS != "windows" {
+		if info.Mode()&0111 == 0 {
+			status.Message = "Not executable (check permissions)"
+			return status
+		}
 	}
 
 	// Try to execute with --version or -h to verify it works
