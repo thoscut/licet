@@ -20,15 +20,16 @@ type UtilityChecker struct {
 
 // NewUtilityChecker creates a new utility checker
 func NewUtilityChecker() *UtilityChecker {
+	binPaths := GetDefaultBinaryPaths()
 	return &UtilityChecker{
 		binaries: map[string]string{
-			"FlexLM (lmutil)":      "/usr/local/bin/lmutil",
-			"RLM (rlmutil)":        "/usr/local/bin/rlmutil",
-			"SPM (spmstat)":        "/usr/local/bin/spmstat",
-			"SESI (sesictrl)":      "/usr/local/bin/sesictrl",
-			"RVL (rvlstatus)":      "/usr/local/bin/rvlstatus",
-			"Tweak (tlm_server)":   "/usr/local/bin/tlm_server",
-			"Pixar (pixar_query)":  "/usr/local/bin/pixar_query.sh",
+			"FlexLM (lmutil)":      binPaths["lmutil"],
+			"RLM (rlmutil)":        binPaths["rlmstat"],
+			"SPM (spmstat)":        binPaths["spmstat"],
+			"SESI (sesictrl)":      binPaths["sesictrl"],
+			"RVL (rvlstatus)":      binPaths["rvlstatus"],
+			"Tweak (tlm_server)":   binPaths["tlm_server"],
+			"Pixar (pixar_query)":  binPaths["pixar_query"],
 		},
 	}
 }

@@ -18,15 +18,8 @@ type LicenseService struct {
 }
 
 func NewLicenseService(db *sqlx.DB, cfg *config.Config) *LicenseService {
-	binPaths := map[string]string{
-		"lmutil":      "/usr/local/bin/lmutil",
-		"rlmstat":     "/usr/local/bin/rlmutil",
-		"spmstat":     "/usr/local/bin/spmstat",
-		"sesictrl":    "/usr/local/bin/sesictrl",
-		"rvlstatus":   "/usr/local/bin/rvlstatus",
-		"tlm_server":  "/usr/local/bin/tlm_server",
-		"pixar_query": "/usr/local/bin/pixar_query.sh",
-	}
+	// Use cross-platform binary path detection
+	binPaths := GetDefaultBinaryPaths()
 
 	return &LicenseService{
 		db:            db,

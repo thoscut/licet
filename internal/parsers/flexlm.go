@@ -12,6 +12,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/thoscut/licet/internal/models"
+	"github.com/thoscut/licet/internal/util"
 )
 
 type FlexLMParser struct {
@@ -20,7 +21,7 @@ type FlexLMParser struct {
 
 func NewFlexLMParser(lmutilPath string) *FlexLMParser {
 	if lmutilPath == "" {
-		lmutilPath = "/usr/local/bin/lmutil"
+		lmutilPath = util.FindBinary("lmutil")
 	}
 	return &FlexLMParser{lmutilPath: lmutilPath}
 }
