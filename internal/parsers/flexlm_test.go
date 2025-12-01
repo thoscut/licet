@@ -298,6 +298,55 @@ Users of nodelocked:  (uncounted, node-locked)
 	}
 }
 
+func TestFlexLMParser_MultipleUsersOfFeatures(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of feature_a:  (Total of 10 licenses issued;  Total of 5 licenses in use)
+
+Users of feature_b:  (Total of 20 licenses issued;  Total of 3 licenses in use)
+
+Users of feature_c:  (Total of 15 licenses issued;  Total of 8 licenses in use)
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	if result.Status.Service != "up" {
+		t.Errorf("Expected service status 'up', got '%s'", result.Status.Service)
+	}
+
+	if len(result.Features) != 3 {
+		t.Fatalf("Expected 3 features, got %d", len(result.Features))
+	}
+
+	// Check that all three features are present
+	featureNames := make(map[string]bool)
+	for _, f := range result.Features {
+		featureNames[f.Name] = true
+	}
+
+	expectedFeatures := []string{"feature_a", "feature_b", "feature_c"}
+	for _, name := range expectedFeatures {
+		if !featureNames[name] {
+			t.Errorf("Expected feature '%s' not found", name)
+		}
+	}
+}
+
 func TestFlexLMParser_ErrorConditions(t *testing.T) {
 	testCases := []struct {
 		name           string
