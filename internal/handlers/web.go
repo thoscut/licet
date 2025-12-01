@@ -67,16 +67,49 @@ func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
 func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 	hostname := chi.URLParam(r, "server")
 
-	features, err := h.licenseService.GetFeatures(hostname)
+	// Find the server configuration to get the type
+	var serverType string
+	for _, srv := range h.cfg.Servers {
+		if srv.Hostname == hostname {
+			serverType = srv.Type
+			break
+		}
+	}
+
+	if serverType == "" {
+		http.Error(w, "Server not found in configuration", http.StatusNotFound)
+		return
+	}
+
+	// Query the live server to get current features and users
+	result, err := h.licenseService.QueryServer(hostname, serverType)
 	if err != nil {
-		http.Error(w, "Failed to get features", http.StatusInternalServerError)
+		// Fall back to database features if live query fails
+		features, dbErr := h.licenseService.GetFeatures(hostname)
+		if dbErr != nil {
+			http.Error(w, "Failed to get server data", http.StatusInternalServerError)
+			return
+		}
+
+		data := map[string]interface{}{
+			"Title":    "Server Details",
+			"Hostname": hostname,
+			"Features": features,
+			"Users":    []interface{}{}, // Empty users if query failed
+			"Error":    err.Error(),
+		}
+
+		if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
+			http.Error(w, "Template error", http.StatusInternalServerError)
+		}
 		return
 	}
 
 	data := map[string]interface{}{
 		"Title":    "Server Details",
 		"Hostname": hostname,
-		"Features": features,
+		"Features": result.Features,
+		"Users":    result.Users,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
