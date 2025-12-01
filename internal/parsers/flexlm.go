@@ -91,13 +91,22 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 	currentFeature := ""
 	featureMap := make(map[string]*models.Feature)
+	// Track usage counts by feature name for aggregation
+	usageMap := make(map[string]struct{ total, used int })
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		// Check for "no such feature exists" and remove the last feature if found
 		if noFeatureRe.MatchString(line) && lastFeatureName != "" {
-			delete(featureMap, lastFeatureName)
+			// Remove from usageMap
+			delete(usageMap, lastFeatureName)
+			// Remove all features with this name from featureMap
+			for key := range featureMap {
+				if featureMap[key].Name == lastFeatureName {
+					delete(featureMap, key)
+				}
+			}
 			lastFeatureName = ""
 			continue
 		}
@@ -137,23 +146,14 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			return
 		}
 
-		// Parse features
+		// Parse features (usage counts)
 		if matches := featureRe.FindStringSubmatch(line); matches != nil {
 			featureName := strings.TrimSpace(matches[1])
 			total, _ := strconv.Atoi(matches[2])
 			used, _ := strconv.Atoi(matches[3])
 
-			if _, exists := featureMap[featureName]; !exists {
-				featureMap[featureName] = &models.Feature{
-					ServerHostname: result.Status.Hostname,
-					Name:           featureName,
-					TotalLicenses:  0,
-					UsedLicenses:   0,
-					LastUpdated:    time.Now(),
-				}
-			}
-			featureMap[featureName].TotalLicenses += total
-			featureMap[featureName].UsedLicenses += used
+			// Store usage counts for later distribution to license pools
+			usageMap[featureName] = struct{ total, used int }{total, used}
 			currentFeature = featureName
 			lastFeatureName = featureName // Track for "no such feature exists" check
 			continue
@@ -231,20 +231,28 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 				}
 			}
 
-			if feature, exists := featureMap[featureName]; exists {
-				feature.Version = version
-				feature.VendorDaemon = vendorDaemon
-				feature.ExpirationDate = expDate
-			} else {
-				featureMap[featureName] = &models.Feature{
-					ServerHostname: result.Status.Hostname,
-					Name:           featureName,
-					Version:        version,
-					VendorDaemon:   vendorDaemon,
-					TotalLicenses:  numLicenses,
-					ExpirationDate: expDate,
-					LastUpdated:    time.Now(),
+			// Create a unique key for each license pool: name + version + expiration
+			key := fmt.Sprintf("%s|%s|%s", featureName, version, expDate.Format("2006-01-02"))
+
+			// Get usage data if available
+			var usedLicenses int
+			if usage, hasUsage := usageMap[featureName]; hasUsage {
+				// Proportionally distribute usage based on license count
+				usedLicenses = (usage.used * numLicenses) / usage.total
+				if usedLicenses > numLicenses {
+					usedLicenses = numLicenses
 				}
+			}
+
+			featureMap[key] = &models.Feature{
+				ServerHostname: result.Status.Hostname,
+				Name:           featureName,
+				Version:        version,
+				VendorDaemon:   vendorDaemon,
+				TotalLicenses:  numLicenses,
+				UsedLicenses:   usedLicenses,
+				ExpirationDate: expDate,
+				LastUpdated:    time.Now(),
 			}
 			continue
 		}
@@ -271,6 +279,29 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 				Host:           host,
 				CheckedOutAt:   checkedOut,
 			})
+		}
+	}
+
+	// Add any features from usageMap that don't have expiration data
+	for featureName, usage := range usageMap {
+		// Check if this feature already exists in featureMap
+		hasFeature := false
+		for _, feature := range featureMap {
+			if feature.Name == featureName {
+				hasFeature = true
+				break
+			}
+		}
+
+		// If not, create a feature from usage data
+		if !hasFeature {
+			featureMap[featureName] = &models.Feature{
+				ServerHostname: result.Status.Hostname,
+				Name:           featureName,
+				TotalLicenses:  usage.total,
+				UsedLicenses:   usage.used,
+				LastUpdated:    time.Now(),
+			}
 		}
 	}
 
