@@ -63,11 +63,12 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 	scanner := bufio.NewScanner(reader)
 
 	statusRe := regexp.MustCompile(`rlm status on\s+([^\s]+)`)
-	versionRe := regexp.MustCompile(`rlm software version v(\d+\.\d+)`)
+	versionRe := regexp.MustCompile(`rlm software version v([\d\.]+)`)
 	isvStatusRe := regexp.MustCompile(`^(\w+)\s+\d+\s+(\w+)\s+\d+`)
-	featureHeaderRe := regexp.MustCompile(`^(\w+)\s+(v\d+\.\d+|\w\d+|\w\d+\.\d+)$`)
+	featureHeaderRe := regexp.MustCompile(`^([\w\+]+)\s+(v[\d\.]+|[\w\d][\d\.]+)`)
 	featureLicenseRe := regexp.MustCompile(`^count:\s+(\d+)[,\s]+.*inuse:\s+(\d+)[,\s]+.*exp:\s+(\d+-\w+-\d{4}|\w+)`)
-	userRe := regexp.MustCompile(`^(\w+)\s+v\d+\.\d+\s+(\w+@\w+)\s+\d+\.\d+\s+\w+\s+(\d+\.\d+\s+\d+\.\d+)`)
+	uncountedLicenseRe := regexp.MustCompile(`^UNCOUNTED[,\s]+.*inuse:\s+(\d+)(?:[,\s]+.*exp:\s+(\d+-\w+-\d{4}|\w+))?`)
+	userRe := regexp.MustCompile(`^([\w\+]+)\s+v[\d\.]+\s+([\w\.\-]+@[\w\-]+)\s+\d+\.\d+\s+\w+\s+(\d+\/\d+\s+\d+:\d+)`)
 
 	currentFeature := ""
 	currentVersion := ""
@@ -133,6 +134,38 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 			continue
 		}
 
+		if matches := uncountedLicenseRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
+			used, _ := strconv.Atoi(matches[1])
+			expirationStr := matches[2]
+			if expirationStr == "" {
+				expirationStr = "permanent"
+			}
+
+			var expDate time.Time
+			if expirationStr == "permanent" {
+				expDate = time.Now().AddDate(100, 0, 0)
+			} else {
+				var err error
+				expDate, err = time.Parse("2-Jan-2006", expirationStr)
+				if err != nil {
+					log.Debugf("Failed to parse expiration: %v", err)
+					expDate = time.Now().AddDate(100, 0, 0)
+				}
+			}
+
+			featureMap[currentFeature] = &models.Feature{
+				ServerHostname: result.Status.Hostname,
+				Name:           currentFeature,
+				Version:        currentVersion,
+				VendorDaemon:   currentVendor,
+				TotalLicenses:  999, // UNCOUNTED licenses
+				UsedLicenses:   used,
+				ExpirationDate: expDate,
+				LastUpdated:    time.Now(),
+			}
+			continue
+		}
+
 		if matches := userRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
 			userHost := matches[2]
 			parts := strings.Split(userHost, "@")
@@ -143,7 +176,7 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 			}
 
 			checkedOutStr := matches[3]
-			checkedOut, _ := time.Parse("1.2 15.04", checkedOutStr)
+			checkedOut, _ := time.Parse("01/02 15:04", checkedOutStr)
 
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,
