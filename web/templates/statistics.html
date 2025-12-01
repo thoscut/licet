@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - Licet</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-top: 60px; }
+        .status-up { background-color: #d4edda; }
+        .status-down { background-color: #f8d7da; }
+        .status-warning { background-color: #fff3cd; }
+        .stat-card {
+            border-left: 4px solid #007bff;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">Licet (Go)</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/utilization">Utilization</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">Alerts</a>
+                    </li>
+                    <li class="nav-item active">
+                        <a class="nav-link" href="/statistics">Statistics</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/api/v1/health">API</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">Settings</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Statistics Dashboard</h1>
+        <p class="text-muted">Overview of license server statistics and usage metrics</p>
+
+        <div class="row mt-4">
+            <div class="col-md-3 mb-4">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-label">Total Servers</div>
+                        <div class="stat-value" id="totalServers">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-label">Active Licenses</div>
+                        <div class="stat-value" id="activeLicenses">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-label">Total Features</div>
+                        <div class="stat-value" id="totalFeatures">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-label">Active Alerts</div>
+                        <div class="stat-value" id="activeAlerts">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Server Type Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="serverTypeStats">
+                            <p class="text-center">
+                                <span class="spinner-border" role="status"></span>
+                                <span class="ms-2">Loading statistics...</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">License Utilization Overview</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="utilizationStats">
+                            <p class="text-center">
+                                <span class="spinner-border" role="status"></span>
+                                <span class="ms-2">Loading statistics...</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Recent Activity</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="recentActivity">
+                            <p class="text-center">
+                                <span class="spinner-border" role="status"></span>
+                                <span class="ms-2">Loading recent activity...</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Server Status Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="serverStatusSummary">
+                            <p class="text-center">
+                                <span class="spinner-border" role="status"></span>
+                                <span class="ms-2">Loading server status...</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="mt-5">
+        <footer>
+            <p class="text-muted">
+                Licet (Go Edition) |
+                <a href="https://github.com/thoscut/licet">GitHub</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="/static/js/bootstrap.min.js"></script>
+    <script>
+        // Load statistics on page load
+        window.addEventListener('load', loadStatistics);
+
+        async function loadStatistics() {
+            await Promise.all([
+                loadServerStats(),
+                loadAlertStats(),
+                loadServerTypeDist(),
+                loadServerStatusSummary()
+            ]);
+        }
+
+        async function loadServerStats() {
+            try {
+                const response = await fetch('/api/v1/servers');
+                const servers = await response.json();
+
+                document.getElementById('totalServers').textContent = servers.length;
+
+                // Calculate total features (this would need API enhancement)
+                let totalFeatures = 0;
+                let totalLicenses = 0;
+
+                // For now, show placeholder values
+                document.getElementById('totalFeatures').textContent = '-';
+                document.getElementById('activeLicenses').textContent = '-';
+
+            } catch (error) {
+                console.error('Error loading server stats:', error);
+                document.getElementById('totalServers').textContent = 'Error';
+                document.getElementById('totalFeatures').textContent = 'Error';
+                document.getElementById('activeLicenses').textContent = 'Error';
+            }
+        }
+
+        async function loadAlertStats() {
+            try {
+                const response = await fetch('/api/v1/alerts');
+                const alerts = await response.json();
+
+                document.getElementById('activeAlerts').textContent = alerts.length;
+
+                // Load recent activity
+                const activityDiv = document.getElementById('recentActivity');
+                if (alerts.length === 0) {
+                    activityDiv.innerHTML = '<p class="text-muted">No recent alerts</p>';
+                } else {
+                    let html = '<ul class="list-group">';
+                    alerts.slice(0, 5).forEach(alert => {
+                        const date = new Date(alert.created_at);
+                        html += `
+                            <li class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>${alert.server_name}</strong> - ${alert.feature_name}
+                                        <br>
+                                        <small class="text-muted">${alert.message}</small>
+                                    </div>
+                                    <span class="badge bg-warning">${date.toLocaleDateString()}</span>
+                                </div>
+                            </li>
+                        `;
+                    });
+                    html += '</ul>';
+                    activityDiv.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Error loading alert stats:', error);
+                document.getElementById('activeAlerts').textContent = 'Error';
+                document.getElementById('recentActivity').innerHTML = '<p class="text-danger">Error loading activity</p>';
+            }
+        }
+
+        async function loadServerTypeDist() {
+            try {
+                const response = await fetch('/api/v1/servers');
+                const servers = await response.json();
+
+                // Count server types
+                const typeCounts = {};
+                servers.forEach(server => {
+                    typeCounts[server.type] = (typeCounts[server.type] || 0) + 1;
+                });
+
+                // Display server type distribution
+                const statsDiv = document.getElementById('serverTypeStats');
+                if (Object.keys(typeCounts).length === 0) {
+                    statsDiv.innerHTML = '<p class="text-muted">No servers configured</p>';
+                } else {
+                    let html = '<table class="table table-sm">';
+                    html += '<thead><tr><th>Server Type</th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
+
+                    const total = servers.length;
+                    Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).forEach(([type, count]) => {
+                        const percentage = ((count / total) * 100).toFixed(1);
+                        html += `
+                            <tr>
+                                <td><span class="badge bg-info">${type}</span></td>
+                                <td>${count}</td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" style="width: ${percentage}%">${percentage}%</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    html += '</tbody></table>';
+                    statsDiv.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Error loading server type distribution:', error);
+                document.getElementById('serverTypeStats').innerHTML = '<p class="text-danger">Error loading data</p>';
+            }
+        }
+
+        async function loadServerStatusSummary() {
+            try {
+                const response = await fetch('/api/v1/servers');
+                const servers = await response.json();
+
+                const summaryDiv = document.getElementById('serverStatusSummary');
+
+                if (servers.length === 0) {
+                    summaryDiv.innerHTML = '<p class="text-muted">No servers configured</p>';
+                    return;
+                }
+
+                let html = '<div class="table-responsive"><table class="table table-sm table-striped">';
+                html += '<thead><tr><th>Server</th><th>Type</th><th>Description</th></tr></thead><tbody>';
+
+                servers.forEach(server => {
+                    html += `
+                        <tr>
+                            <td><code>${server.hostname}</code></td>
+                            <td><span class="badge bg-info">${server.type}</span></td>
+                            <td>${server.description || '-'}</td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table></div>';
+                summaryDiv.innerHTML = html;
+
+                // Also update utilization stats placeholder
+                const utilizationDiv = document.getElementById('utilizationStats');
+                utilizationDiv.innerHTML = `
+                    <p class="text-muted mb-2">License utilization tracking coming soon</p>
+                    <p class="text-muted mb-0"><small>This feature will display real-time license usage across all servers</small></p>
+                `;
+
+            } catch (error) {
+                console.error('Error loading server status summary:', error);
+                document.getElementById('serverStatusSummary').innerHTML = '<p class="text-danger">Error loading data</p>';
+            }
+        }
+
+        // Refresh statistics every 30 seconds
+        setInterval(loadStatistics, 30000);
+    </script>
+</body>
+</html>

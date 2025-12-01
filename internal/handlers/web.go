@@ -151,3 +151,13 @@ func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Template error", http.StatusInternalServerError)
 	}
 }
+
+func (h *WebHandler) Statistics(w http.ResponseWriter, r *http.Request) {
+	data := map[string]interface{}{
+		"Title": "Statistics Dashboard",
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "statistics.html", data); err != nil {
+		http.Error(w, "Template error", http.StatusInternalServerError)
+	}
+}
