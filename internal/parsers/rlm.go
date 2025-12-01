@@ -12,6 +12,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/thoscut/licet/internal/models"
+	"github.com/thoscut/licet/internal/util"
 )
 
 type RLMParser struct {
@@ -20,7 +21,7 @@ type RLMParser struct {
 
 func NewRLMParser(rlmstatPath string) *RLMParser {
 	if rlmstatPath == "" {
-		rlmstatPath = "/usr/local/bin/rlmutil"
+		rlmstatPath = util.FindBinary("rlmutil")
 	}
 	return &RLMParser{rlmstatPath: rlmstatPath}
 }
