@@ -58,7 +58,7 @@ func RunMigrations(db *sqlx.DB) error {
 			used_licenses INTEGER NOT NULL,
 			expiration_date TIMESTAMP,
 			last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(server_hostname, name)
+			UNIQUE(server_hostname, name, version, expiration_date)
 		)`,
 		`CREATE TABLE IF NOT EXISTS feature_usage (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,7 +145,7 @@ func fixFeaturesTableConstraint(db *sqlx.DB) error {
 			used_licenses INTEGER NOT NULL,
 			expiration_date TIMESTAMP,
 			last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(server_hostname, name)
+			UNIQUE(server_hostname, name, version, expiration_date)
 		)`,
 		`INSERT INTO features (id, server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
 		 SELECT id, server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated
