@@ -54,14 +54,28 @@ func (s *LicenseService) QueryServer(hostname, serverType string) (models.Server
 	log.Infof("Querying %s server: %s", serverType, hostname)
 	result := parser.Query(hostname)
 
+	// Log query results at debug level
+	if result.Error != nil {
+		log.Debugf("Query error for %s: %v", hostname, result.Error)
+	} else {
+		log.Debugf("Query successful for %s: service=%s, features=%d, users=%d",
+			hostname, result.Status.Service, len(result.Features), len(result.Users))
+	}
+
 	// Store results in database
 	if result.Error == nil && len(result.Features) > 0 {
+		log.Debugf("Storing %d features from %s to database", len(result.Features), hostname)
 		if err := s.storeFeatures(result.Features); err != nil {
 			log.Errorf("Failed to store features: %v", err)
+		} else {
+			log.Debugf("Successfully stored features from %s", hostname)
 		}
 
+		log.Debugf("Recording usage data for %d features from %s", len(result.Features), hostname)
 		if err := s.recordUsage(result.Features); err != nil {
 			log.Errorf("Failed to record usage: %v", err)
+		} else {
+			log.Debugf("Successfully recorded usage from %s", hostname)
 		}
 	}
 
