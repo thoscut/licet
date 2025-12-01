@@ -109,3 +109,30 @@ type ServerQueryResult struct {
 	Users    []LicenseUser
 	Error    error
 }
+
+// UtilizationData represents current utilization for a feature
+type UtilizationData struct {
+	ServerHostname    string  `json:"server_hostname"`
+	FeatureName       string  `json:"feature_name"`
+	TotalLicenses     int     `json:"total_licenses"`
+	UsedLicenses      int     `json:"used_licenses"`
+	AvailableLicenses int     `json:"available_licenses"`
+	UtilizationPct    float64 `json:"utilization_pct"`
+	VendorDaemon      string  `json:"vendor_daemon"`
+}
+
+// UtilizationHistoryPoint represents a single data point in utilization history
+type UtilizationHistoryPoint struct {
+	Timestamp  string `json:"timestamp"`
+	UsersCount int    `json:"users_count"`
+}
+
+// UtilizationStats represents aggregated statistics for a feature
+type UtilizationStats struct {
+	ServerHostname string  `json:"server_hostname"`
+	FeatureName    string  `json:"feature_name"`
+	AvgUsage       float64 `json:"avg_usage"`
+	PeakUsage      int     `json:"peak_usage"`
+	MinUsage       int     `json:"min_usage"`
+	TotalLicenses  int     `json:"total_licenses"`
+}

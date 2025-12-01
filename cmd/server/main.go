@@ -161,6 +161,11 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 		r.Post("/settings/email", handlers.UpdateEmailSettings(cfg))
 		r.Post("/settings/alerts", handlers.UpdateAlertSettings(cfg))
 		r.Get("/health", handlers.Health())
+
+		// Utilization endpoints
+		r.Get("/utilization/current", handlers.GetCurrentUtilization(licenseService))
+		r.Get("/utilization/history", handlers.GetUtilizationHistory(licenseService))
+		r.Get("/utilization/stats", handlers.GetUtilizationStats(licenseService))
 	})
 
 	return r

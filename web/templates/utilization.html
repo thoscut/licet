@@ -10,6 +10,53 @@
         .status-up { background-color: #d4edda; }
         .status-down { background-color: #f8d7da; }
         .status-warning { background-color: #fff3cd; }
+
+        .utilization-card {
+            margin-bottom: 1rem;
+            transition: transform 0.2s;
+        }
+        .utilization-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .utilization-low { border-left: 4px solid #28a745; }
+        .utilization-medium { border-left: 4px solid #ffc107; }
+        .utilization-high { border-left: 4px solid #dc3545; }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 2rem;
+        }
+
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .feature-checkbox {
+            margin-right: 1rem;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .stats-table {
+            font-size: 0.9rem;
+        }
+
+        .stats-table th {
+            background-color: #f8f9fa;
+        }
     </style>
 </head>
 <body>
@@ -46,10 +93,90 @@
 
     <div class="container">
         <h1>License Utilization</h1>
-        <p>Historical license usage tracking and trends.</p>
+        <p>Monitor real-time license usage and historical trends</p>
 
-        <div class="alert alert-info">
-            <strong>Note:</strong> Utilization data collection and graphing functionality will be implemented in a future update.
+        <!-- Filters Section -->
+        <div class="filter-section">
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="serverFilter" class="form-label">Filter by Server</label>
+                    <select id="serverFilter" class="form-select">
+                        <option value="">All Servers</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="periodFilter" class="form-label">Time Period</label>
+                    <select id="periodFilter" class="form-select">
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d" selected>Last 30 Days</option>
+                        <option value="90d">Last 90 Days</option>
+                        <option value="1y">Last Year</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">&nbsp;</label>
+                    <button id="refreshBtn" class="btn btn-primary w-100">
+                        <span id="refreshIcon">🔄</span> Refresh Data
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Loading utilization data...</p>
+        </div>
+
+        <!-- Current Utilization Section -->
+        <div id="currentUtilizationSection">
+            <h2>Current License Utilization</h2>
+            <div id="currentUtilization" class="row">
+                <!-- Utilization cards will be inserted here -->
+            </div>
+        </div>
+
+        <hr class="my-4">
+
+        <!-- Historical Trends Section -->
+        <div id="historicalSection">
+            <h2>Usage Trends</h2>
+            <div class="mb-3">
+                <label class="form-label"><strong>Select Features to Compare:</strong></label>
+                <div id="featureSelector" class="d-flex flex-wrap">
+                    <!-- Feature checkboxes will be inserted here -->
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="utilizationChart"></canvas>
+            </div>
+        </div>
+
+        <hr class="my-4">
+
+        <!-- Statistics Table Section -->
+        <div id="statsSection">
+            <h2>Detailed Statistics</h2>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover stats-table">
+                    <thead>
+                        <tr>
+                            <th>Server</th>
+                            <th>Feature</th>
+                            <th>Total Licenses</th>
+                            <th>Avg Usage</th>
+                            <th>Peak Usage</th>
+                            <th>Min Usage</th>
+                            <th>Avg Utilization %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statsTableBody">
+                        <!-- Stats rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <hr>
@@ -62,5 +189,337 @@
     </div>
 
     <script src="/static/js/bootstrap.min.js"></script>
+    <script src="/static/js/chart.min.js"></script>
+    <script src="/static/js/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let utilizationChart = null;
+        let currentUtilizationData = [];
+        let allServers = new Set();
+        let selectedFeatures = new Set();
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServers();
+            loadData();
+
+            // Event listeners
+            document.getElementById('serverFilter').addEventListener('change', loadData);
+            document.getElementById('periodFilter').addEventListener('change', loadData);
+            document.getElementById('refreshBtn').addEventListener('click', loadData);
+        });
+
+        // Load available servers
+        async function loadServers() {
+            try {
+                const response = await fetch('/api/v1/servers');
+                const data = await response.json();
+
+                const serverSelect = document.getElementById('serverFilter');
+                data.servers.forEach(server => {
+                    const option = document.createElement('option');
+                    option.value = server.hostname;
+                    option.textContent = `${server.hostname} (${server.description})`;
+                    serverSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading servers:', error);
+            }
+        }
+
+        // Load all data
+        async function loadData() {
+            showLoading(true);
+            try {
+                await Promise.all([
+                    loadCurrentUtilization(),
+                    loadStatistics()
+                ]);
+            } catch (error) {
+                console.error('Error loading data:', error);
+                alert('Failed to load utilization data. Please try again.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Load current utilization
+        async function loadCurrentUtilization() {
+            const serverFilter = document.getElementById('serverFilter').value;
+            const url = `/api/v1/utilization/current${serverFilter ? '?server=' + encodeURIComponent(serverFilter) : ''}`;
+
+            const response = await fetch(url);
+            const data = await response.json();
+            currentUtilizationData = data.utilization || [];
+
+            // Render utilization cards
+            const container = document.getElementById('currentUtilization');
+            container.innerHTML = '';
+
+            if (currentUtilizationData.length === 0) {
+                container.innerHTML = '<div class="col-12"><div class="alert alert-info">No utilization data available. Data will appear once license servers are queried.</div></div>';
+                return;
+            }
+
+            currentUtilizationData.forEach(item => {
+                allServers.add(item.server_hostname);
+
+                const utilizationClass = item.utilization_pct >= 90 ? 'utilization-high' :
+                                       item.utilization_pct >= 70 ? 'utilization-medium' : 'utilization-low';
+
+                const progressBarClass = item.utilization_pct >= 90 ? 'bg-danger' :
+                                        item.utilization_pct >= 70 ? 'bg-warning' : 'bg-success';
+
+                const card = `
+                    <div class="col-md-4 col-lg-3">
+                        <div class="card utilization-card ${utilizationClass}">
+                            <div class="card-body">
+                                <h6 class="card-title text-truncate" title="${item.feature_name}">${item.feature_name}</h6>
+                                <p class="card-text small text-muted mb-2">${item.server_hostname}</p>
+                                <h4 class="mb-2">${item.used_licenses}/${item.total_licenses}</h4>
+                                <div class="progress mb-2" style="height: 20px;">
+                                    <div class="progress-bar ${progressBarClass}" role="progressbar"
+                                         style="width: ${item.utilization_pct}%"
+                                         aria-valuenow="${item.utilization_pct}"
+                                         aria-valuemin="0"
+                                         aria-valuemax="100">
+                                        ${item.utilization_pct.toFixed(1)}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">${item.available_licenses} available</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+
+            // Update feature selector
+            updateFeatureSelector();
+        }
+
+        // Update feature selector checkboxes
+        function updateFeatureSelector() {
+            const container = document.getElementById('featureSelector');
+            container.innerHTML = '';
+
+            if (currentUtilizationData.length === 0) {
+                container.innerHTML = '<p class="text-muted">No features available</p>';
+                return;
+            }
+
+            // Auto-select first 3 features if none selected
+            if (selectedFeatures.size === 0) {
+                currentUtilizationData.slice(0, 3).forEach(item => {
+                    selectedFeatures.add(`${item.server_hostname}:${item.feature_name}`);
+                });
+            }
+
+            currentUtilizationData.forEach(item => {
+                const key = `${item.server_hostname}:${item.feature_name}`;
+                const checked = selectedFeatures.has(key) ? 'checked' : '';
+
+                const checkbox = `
+                    <div class="form-check feature-checkbox">
+                        <input class="form-check-input feature-toggle" type="checkbox"
+                               value="${key}" id="feature-${key.replace(/[^a-zA-Z0-9]/g, '_')}"
+                               ${checked}
+                               data-server="${item.server_hostname}"
+                               data-feature="${item.feature_name}">
+                        <label class="form-check-label" for="feature-${key.replace(/[^a-zA-Z0-9]/g, '_')}">
+                            ${item.feature_name} <small class="text-muted">(${item.server_hostname})</small>
+                        </label>
+                    </div>
+                `;
+                container.innerHTML += checkbox;
+            });
+
+            // Add event listeners to checkboxes
+            document.querySelectorAll('.feature-toggle').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        selectedFeatures.add(this.value);
+                    } else {
+                        selectedFeatures.delete(this.value);
+                    }
+                    loadHistoricalChart();
+                });
+            });
+
+            // Load chart with selected features
+            loadHistoricalChart();
+        }
+
+        // Load historical chart
+        async function loadHistoricalChart() {
+            const period = document.getElementById('periodFilter').value;
+
+            if (selectedFeatures.size === 0) {
+                // Clear chart if no features selected
+                if (utilizationChart) {
+                    utilizationChart.destroy();
+                    utilizationChart = null;
+                }
+                return;
+            }
+
+            // Load data for each selected feature
+            const datasets = [];
+            const colors = [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+            ];
+
+            let colorIndex = 0;
+            for (const key of selectedFeatures) {
+                const [server, feature] = key.split(':');
+
+                try {
+                    const url = `/api/v1/utilization/history?server=${encodeURIComponent(server)}&feature=${encodeURIComponent(feature)}&period=${period}`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (data.history && data.history.length > 0) {
+                        datasets.push({
+                            label: `${feature} (${server})`,
+                            data: data.history.map(point => ({
+                                x: point.timestamp,
+                                y: point.users_count
+                            })),
+                            borderColor: colors[colorIndex % colors.length],
+                            backgroundColor: colors[colorIndex % colors.length] + '33',
+                            tension: 0.4,
+                            fill: false
+                        });
+                        colorIndex++;
+                    }
+                } catch (error) {
+                    console.error(`Error loading history for ${key}:`, error);
+                }
+            }
+
+            // Create or update chart
+            const ctx = document.getElementById('utilizationChart').getContext('2d');
+
+            if (utilizationChart) {
+                utilizationChart.destroy();
+            }
+
+            utilizationChart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'License Usage Over Time'
+                        },
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y + ' licenses';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'MMM d'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Licenses in Use'
+                            },
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load statistics table
+        async function loadStatistics() {
+            const serverFilter = document.getElementById('serverFilter').value;
+            const period = document.getElementById('periodFilter').value;
+
+            let days = 30;
+            switch(period) {
+                case '7d': days = 7; break;
+                case '30d': days = 30; break;
+                case '90d': days = 90; break;
+                case '1y': days = 365; break;
+            }
+
+            const url = `/api/v1/utilization/stats?days=${days}${serverFilter ? '&server=' + encodeURIComponent(serverFilter) : ''}`;
+
+            const response = await fetch(url);
+            const data = await response.json();
+            const stats = data.stats || [];
+
+            const tbody = document.getElementById('statsTableBody');
+            tbody.innerHTML = '';
+
+            if (stats.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No statistics available</td></tr>';
+                return;
+            }
+
+            stats.forEach(stat => {
+                const avgUtilization = stat.total_licenses > 0
+                    ? (stat.avg_usage / stat.total_licenses * 100).toFixed(1)
+                    : 0;
+
+                const row = `
+                    <tr>
+                        <td>${stat.server_hostname}</td>
+                        <td>${stat.feature_name}</td>
+                        <td>${stat.total_licenses}</td>
+                        <td>${stat.avg_usage.toFixed(1)}</td>
+                        <td>${stat.peak_usage}</td>
+                        <td>${stat.min_usage}</td>
+                        <td>
+                            <span class="badge ${avgUtilization >= 90 ? 'bg-danger' : avgUtilization >= 70 ? 'bg-warning' : 'bg-success'}">
+                                ${avgUtilization}%
+                            </span>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        // Show/hide loading indicator
+        function showLoading(show) {
+            const indicator = document.getElementById('loadingIndicator');
+            if (show) {
+                indicator.classList.add('active');
+            } else {
+                indicator.classList.remove('active');
+            }
+        }
+    </script>
 </body>
 </html>
