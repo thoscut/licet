@@ -293,3 +293,86 @@ func (s *LicenseService) GetUtilizationStats(server string, days int) ([]models.
 	err := s.db.Select(&stats, query, args...)
 	return stats, err
 }
+
+// GetHeatmapData returns hour-of-day usage patterns for heatmap visualization
+func (s *LicenseService) GetHeatmapData(server string, days int) ([]models.HeatmapData, error) {
+	cutoff := time.Now().AddDate(0, 0, -days)
+
+	// First, get all unique features
+	featuresQuery := `
+		SELECT DISTINCT server_hostname, feature_name
+		FROM feature_usage
+		WHERE date >= ?
+	`
+	args := []interface{}{cutoff.Format("2006-01-02")}
+	if server != "" {
+		featuresQuery += " AND server_hostname = ?"
+		args = append(args, server)
+	}
+
+	type featureKey struct {
+		ServerHostname string `db:"server_hostname"`
+		FeatureName    string `db:"feature_name"`
+	}
+	var features []featureKey
+	if err := s.db.Select(&features, featuresQuery, args...); err != nil {
+		return nil, err
+	}
+
+	// For each feature, get hourly usage patterns
+	var heatmapData []models.HeatmapData
+
+	for _, feature := range features {
+		hourlyQuery := `
+			SELECT
+				CAST(strftime('%H', time) AS INTEGER) as hour,
+				AVG(users_count) as avg_usage,
+				MAX(users_count) as peak_usage
+			FROM feature_usage
+			WHERE server_hostname = ?
+			  AND feature_name = ?
+			  AND date >= ?
+			GROUP BY hour
+			ORDER BY hour
+		`
+
+		var hourlyData []models.HeatmapHourly
+		err := s.db.Select(&hourlyData, hourlyQuery,
+			feature.ServerHostname,
+			feature.FeatureName,
+			cutoff.Format("2006-01-02"))
+
+		if err != nil {
+			log.Errorf("Failed to get heatmap data for %s:%s: %v",
+				feature.ServerHostname, feature.FeatureName, err)
+			continue
+		}
+
+		// Ensure we have data for all 24 hours (fill in zeros for missing hours)
+		hourlyMap := make(map[int]models.HeatmapHourly)
+		for _, h := range hourlyData {
+			hourlyMap[h.Hour] = h
+		}
+
+		completeHourly := make([]models.HeatmapHourly, 24)
+		for hour := 0; hour < 24; hour++ {
+			if data, exists := hourlyMap[hour]; exists {
+				completeHourly[hour] = data
+			} else {
+				completeHourly[hour] = models.HeatmapHourly{
+					Hour:      hour,
+					AvgUsage:  0,
+					PeakUsage: 0,
+				}
+			}
+		}
+
+		heatmapData = append(heatmapData, models.HeatmapData{
+			ServerHostname: feature.ServerHostname,
+			FeatureName:    feature.FeatureName,
+			HourlyData:     completeHourly,
+		})
+	}
+
+	return heatmapData, nil
+}

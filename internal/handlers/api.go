@@ -209,3 +209,29 @@ func GetUtilizationStats(licenseService *services.LicenseService) http.HandlerFu
 		})
 	}
 }
+
+// GetUtilizationHeatmap returns hour-of-day usage patterns for heatmap visualization
+func GetUtilizationHeatmap(licenseService *services.LicenseService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		server := r.URL.Query().Get("server")
+		daysStr := r.URL.Query().Get("days")
+
+		days := 7 // Default to last 7 days for heatmap
+		if daysStr != "" {
+			if d, err := strconv.Atoi(daysStr); err == nil {
+				days = d
+			}
+		}
+
+		heatmap, err := licenseService.GetHeatmapData(server, days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"heatmap": heatmap,
+		})
+	}
+}

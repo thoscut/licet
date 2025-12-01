@@ -166,6 +166,7 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 		r.Get("/utilization/current", handlers.GetCurrentUtilization(licenseService))
 		r.Get("/utilization/history", handlers.GetUtilizationHistory(licenseService))
 		r.Get("/utilization/stats", handlers.GetUtilizationStats(licenseService))
+		r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(licenseService))
 	})
 
 	return r

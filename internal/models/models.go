@@ -136,3 +136,17 @@ type UtilizationStats struct {
 	MinUsage       int     `json:"min_usage"`
 	TotalLicenses  int     `json:"total_licenses"`
 }
+
+// HeatmapData represents hour-of-day usage patterns for heatmap visualization
+type HeatmapData struct {
+	ServerHostname string           `json:"server_hostname"`
+	FeatureName    string           `json:"feature_name"`
+	HourlyData     []HeatmapHourly  `json:"hourly_data"`
+}
+
+// HeatmapHourly represents usage data for a specific hour
+type HeatmapHourly struct {
+	Hour      int     `json:"hour"`      // 0-23
+	AvgUsage  float64 `json:"avg_usage"`
+	PeakUsage int     `json:"peak_usage"`
+}

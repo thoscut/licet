@@ -132,7 +132,12 @@
 
         <!-- Current Utilization Section -->
         <div id="currentUtilizationSection">
-            <h2>Current License Utilization</h2>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="mb-0">Current License Utilization</h2>
+                <button id="exportCurrentBtn" class="btn btn-sm btn-outline-primary">
+                    📊 Export to CSV
+                </button>
+            </div>
             <div id="currentUtilization" class="row">
                 <!-- Utilization cards will be inserted here -->
             </div>
@@ -156,9 +161,31 @@
 
         <hr class="my-4">
 
+        <!-- Peak Usage Heatmap Section -->
+        <div id="heatmapSection">
+            <h2>Peak Usage Patterns (Hour of Day)</h2>
+            <p class="text-muted">Shows average license usage by hour to identify peak demand times</p>
+            <div class="mb-3">
+                <label for="heatmapFeatureSelect" class="form-label">Select Feature:</label>
+                <select id="heatmapFeatureSelect" class="form-select" style="max-width: 400px;">
+                    <option value="">Select a feature...</option>
+                </select>
+            </div>
+            <div class="chart-container" style="height: 300px;">
+                <canvas id="heatmapChart"></canvas>
+            </div>
+        </div>
+
+        <hr class="my-4">
+
         <!-- Statistics Table Section -->
         <div id="statsSection">
-            <h2>Detailed Statistics</h2>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="mb-0">Detailed Statistics</h2>
+                <button id="exportStatsBtn" class="btn btn-sm btn-outline-primary">
+                    📊 Export to CSV
+                </button>
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped table-hover stats-table">
                     <thead>
@@ -191,22 +218,36 @@
     <script src="/static/js/bootstrap.min.js"></script>
     <script src="/static/js/chart.min.js"></script>
     <script src="/static/js/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="/static/js/chartjs-chart-matrix.min.js"></script>
     <script>
         // Global variables
         let utilizationChart = null;
+        let heatmapChart = null;
         let currentUtilizationData = [];
+        let statsData = [];
+        let heatmapData = [];
         let allServers = new Set();
         let selectedFeatures = new Set();
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            loadUserPreferences();
             loadServers();
             loadData();
 
             // Event listeners
-            document.getElementById('serverFilter').addEventListener('change', loadData);
-            document.getElementById('periodFilter').addEventListener('change', loadData);
+            document.getElementById('serverFilter').addEventListener('change', function() {
+                saveUserPreferences();
+                loadData();
+            });
+            document.getElementById('periodFilter').addEventListener('change', function() {
+                saveUserPreferences();
+                loadData();
+            });
             document.getElementById('refreshBtn').addEventListener('click', loadData);
+            document.getElementById('exportCurrentBtn').addEventListener('click', exportCurrentToCSV);
+            document.getElementById('exportStatsBtn').addEventListener('click', exportStatsToCSV);
+            document.getElementById('heatmapFeatureSelect').addEventListener('change', loadHeatmapForFeature);
         });
 
         // Load available servers
@@ -233,7 +274,8 @@
             try {
                 await Promise.all([
                     loadCurrentUtilization(),
-                    loadStatistics()
+                    loadStatistics(),
+                    loadHeatmap()
                 ]);
             } catch (error) {
                 console.error('Error loading data:', error);
@@ -477,17 +519,17 @@
 
             const response = await fetch(url);
             const data = await response.json();
-            const stats = data.stats || [];
+            statsData = data.stats || [];
 
             const tbody = document.getElementById('statsTableBody');
             tbody.innerHTML = '';
 
-            if (stats.length === 0) {
+            if (statsData.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No statistics available</td></tr>';
                 return;
             }
 
-            stats.forEach(stat => {
+            statsData.forEach(stat => {
                 const avgUtilization = stat.total_licenses > 0
                     ? (stat.avg_usage / stat.total_licenses * 100).toFixed(1)
                     : 0;
@@ -518,6 +560,239 @@
                 indicator.classList.add('active');
             } else {
                 indicator.classList.remove('active');
+            }
+        }
+
+        // Load heatmap data
+        async function loadHeatmap() {
+            const serverFilter = document.getElementById('serverFilter').value;
+            const period = document.getElementById('periodFilter').value;
+
+            let days = 7;
+            switch(period) {
+                case '7d': days = 7; break;
+                case '30d': days = 7; break; // Use 7 days for heatmap even on 30d view
+                case '90d': days = 14; break;
+                case '1y': days = 30; break;
+            }
+
+            const url = `/api/v1/utilization/heatmap?days=${days}${serverFilter ? '&server=' + encodeURIComponent(serverFilter) : ''}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                heatmapData = data.heatmap || [];
+
+                // Update feature selector for heatmap
+                const select = document.getElementById('heatmapFeatureSelect');
+                select.innerHTML = '<option value="">Select a feature...</option>';
+
+                heatmapData.forEach((item, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = `${item.feature_name} (${item.server_hostname})`;
+                    select.appendChild(option);
+                });
+
+                // Auto-select first feature if available
+                if (heatmapData.length > 0) {
+                    select.value = '0';
+                    loadHeatmapForFeature();
+                }
+            } catch (error) {
+                console.error('Error loading heatmap:', error);
+            }
+        }
+
+        // Load heatmap for selected feature
+        function loadHeatmapForFeature() {
+            const select = document.getElementById('heatmapFeatureSelect');
+            const index = parseInt(select.value);
+
+            if (isNaN(index) || !heatmapData[index]) {
+                if (heatmapChart) {
+                    heatmapChart.destroy();
+                    heatmapChart = null;
+                }
+                return;
+            }
+
+            const feature = heatmapData[index];
+            const ctx = document.getElementById('heatmapChart').getContext('2d');
+
+            // Prepare data for bar chart (simpler than matrix for hour-of-day)
+            const labels = feature.hourly_data.map(h => `${h.hour}:00`);
+            const avgData = feature.hourly_data.map(h => h.avg_usage);
+            const peakData = feature.hourly_data.map(h => h.peak_usage);
+
+            if (heatmapChart) {
+                heatmapChart.destroy();
+            }
+
+            heatmapChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Average Usage',
+                            data: avgData,
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Peak Usage',
+                            data: peakData,
+                            backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${feature.feature_name} - Usage by Hour of Day`
+                        },
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Hour of Day'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Licenses in Use'
+                            },
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Export current utilization to CSV
+        function exportCurrentToCSV() {
+            if (currentUtilizationData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            const headers = ['Server', 'Feature', 'Total Licenses', 'Used', 'Available', 'Utilization %', 'Vendor Daemon'];
+            const rows = currentUtilizationData.map(item => [
+                item.server_hostname,
+                item.feature_name,
+                item.total_licenses,
+                item.used_licenses,
+                item.available_licenses,
+                item.utilization_pct.toFixed(2),
+                item.vendor_daemon
+            ]);
+
+            downloadCSV('current-utilization.csv', headers, rows);
+        }
+
+        // Export statistics to CSV
+        function exportStatsToCSV() {
+            if (statsData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            const headers = ['Server', 'Feature', 'Total Licenses', 'Avg Usage', 'Peak Usage', 'Min Usage', 'Avg Utilization %'];
+            const rows = statsData.map(stat => {
+                const avgUtil = stat.total_licenses > 0
+                    ? (stat.avg_usage / stat.total_licenses * 100).toFixed(2)
+                    : '0.00';
+                return [
+                    stat.server_hostname,
+                    stat.feature_name,
+                    stat.total_licenses,
+                    stat.avg_usage.toFixed(2),
+                    stat.peak_usage,
+                    stat.min_usage,
+                    avgUtil
+                ];
+            });
+
+            downloadCSV('utilization-statistics.csv', headers, rows);
+        }
+
+        // Helper function to download CSV
+        function downloadCSV(filename, headers, rows) {
+            let csv = headers.join(',') + '\n';
+            rows.forEach(row => {
+                csv += row.map(cell => {
+                    // Escape cells containing commas or quotes
+                    if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"'))) {
+                        return '"' + cell.replace(/"/g, '""') + '"';
+                    }
+                    return cell;
+                }).join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Save user preferences to localStorage
+        function saveUserPreferences() {
+            const prefs = {
+                serverFilter: document.getElementById('serverFilter').value,
+                periodFilter: document.getElementById('periodFilter').value,
+                selectedFeatures: Array.from(selectedFeatures)
+            };
+            localStorage.setItem('licet_utilization_prefs', JSON.stringify(prefs));
+        }
+
+        // Load user preferences from localStorage
+        function loadUserPreferences() {
+            try {
+                const prefsStr = localStorage.getItem('licet_utilization_prefs');
+                if (prefsStr) {
+                    const prefs = JSON.parse(prefsStr);
+
+                    if (prefs.serverFilter) {
+                        // Will be set after servers are loaded
+                        setTimeout(() => {
+                            const serverSelect = document.getElementById('serverFilter');
+                            if (serverSelect && prefs.serverFilter) {
+                                serverSelect.value = prefs.serverFilter;
+                            }
+                        }, 100);
+                    }
+
+                    if (prefs.periodFilter) {
+                        document.getElementById('periodFilter').value = prefs.periodFilter;
+                    }
+
+                    if (prefs.selectedFeatures && Array.isArray(prefs.selectedFeatures)) {
+                        selectedFeatures = new Set(prefs.selectedFeatures);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading preferences:', error);
             }
         }
     </script>
