@@ -18,8 +18,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port int
-	Host string
+	Port            int    `mapstructure:"port"`
+	Host            string `mapstructure:"host"`
+	SettingsEnabled bool   `mapstructure:"settings_enabled"`
 }
 
 type DatabaseConfig struct {
@@ -78,6 +79,7 @@ func Load() (*Config, error) {
 	// Set defaults
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.host", "0.0.0.0")
+	viper.SetDefault("server.settings_enabled", true)
 	viper.SetDefault("database.type", "sqlite")
 	viper.SetDefault("database.database", "licet.db")
 	viper.SetDefault("database.sslmode", "disable")
