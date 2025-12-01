@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"gopkg.in/yaml.v3"
 	"github.com/thoscut/licet/internal/config"
+	"gopkg.in/yaml.v3"
 )
 
 // ConfigWriter handles writing server configurations to config.yaml
