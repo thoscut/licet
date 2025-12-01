@@ -209,7 +209,8 @@
         async function loadServerStats() {
             try {
                 const response = await fetch('/api/v1/servers');
-                const servers = await response.json();
+                const data = await response.json();
+                const servers = data.servers || [];
 
                 document.getElementById('totalServers').textContent = servers.length;
 
@@ -232,7 +233,8 @@
         async function loadAlertStats() {
             try {
                 const response = await fetch('/api/v1/alerts');
-                const alerts = await response.json();
+                const data = await response.json();
+                const alerts = data.alerts || [];
 
                 document.getElementById('activeAlerts').textContent = alerts.length;
 
@@ -270,7 +272,8 @@
         async function loadServerTypeDist() {
             try {
                 const response = await fetch('/api/v1/servers');
-                const servers = await response.json();
+                const data = await response.json();
+                const servers = data.servers || [];
 
                 // Count server types
                 const typeCounts = {};
@@ -313,7 +316,8 @@
         async function loadServerStatusSummary() {
             try {
                 const response = await fetch('/api/v1/servers');
-                const servers = await response.json();
+                const data = await response.json();
+                const servers = data.servers || [];
 
                 const summaryDiv = document.getElementById('serverStatusSummary');
 
