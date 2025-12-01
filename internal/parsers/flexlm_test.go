@@ -347,6 +347,126 @@ Users of feature_c:  (Total of 15 licenses issued;  Total of 8 licenses in use)
 	}
 }
 
+func TestFlexLMParser_RealisticMultiFeatureOutput(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Realistic output with multiple features mixed with expiration data
+	output := `lmutil - Copyright (c) 1989-2018 Flexera Software LLC. All Rights Reserved.
+lmstat - Copyright (c) 1989-2018 Flexera Software LLC. All Rights Reserved.
+Flexible License Manager status on Tue 12/1/2025 10:00
+
+License server status: 27000@license-server.example.com
+    license-server.example.com: license server UP (MASTER) v11.16.2
+
+Vendor daemon status (on license-server.example.com):
+
+     myvendor: UP v11.16.2
+
+Feature usage info:
+
+Users of feature_alpha:  (Total of 100 licenses issued;  Total of 45 licenses in use)
+
+  "feature_alpha" v2023.1, vendor: myvendor
+  floating license
+
+    user1 machine1 /dev/tty (v2023.1) (license-server.example.com/27000 1234), start Mon 11/30 9:00
+    user2 machine2 /dev/tty (v2023.1) (license-server.example.com/27000 1235), start Mon 11/30 10:15
+
+Users of feature_beta:  (Total of 50 licenses issued;  Total of 12 licenses in use)
+
+  "feature_beta" v2023.1, vendor: myvendor
+  floating license
+
+    user3 machine3 /dev/tty (v2023.1) (license-server.example.com/27000 1236), start Tue 12/1 8:00
+
+Users of feature_gamma:  (Total of 25 licenses issued;  Total of 5 licenses in use)
+
+  "feature_gamma" v2023.1, vendor: myvendor
+  floating license
+
+    user4 machine4 /dev/tty (v2023.1) (license-server.example.com/27000 1237), start Tue 12/1 9:30
+
+License files on license-server.example.com:
+feature_alpha 2023.1 100 myvendor 31-dec-2025
+feature_beta 2023.1 50 myvendor 30-jun-2026
+feature_gamma 2023.1 25 myvendor permanent
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@license-server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	if result.Status.Service != "up" {
+		t.Errorf("Expected service status 'up', got '%s'", result.Status.Service)
+	}
+
+	if len(result.Features) != 3 {
+		t.Fatalf("Expected 3 features, got %d. Features found: %v", len(result.Features), func() []string {
+			names := []string{}
+			for _, f := range result.Features {
+				names = append(names, f.Name)
+			}
+			return names
+		}())
+	}
+
+	// Verify all three features are present
+	featureMap := make(map[string]*models.Feature)
+	for i := range result.Features {
+		featureMap[result.Features[i].Name] = &result.Features[i]
+	}
+
+	// Check feature_alpha
+	if f, ok := featureMap["feature_alpha"]; !ok {
+		t.Error("feature_alpha not found")
+	} else {
+		if f.TotalLicenses != 100 {
+			t.Errorf("feature_alpha: expected 100 total licenses, got %d", f.TotalLicenses)
+		}
+		if f.UsedLicenses != 45 {
+			t.Errorf("feature_alpha: expected 45 used licenses, got %d", f.UsedLicenses)
+		}
+	}
+
+	// Check feature_beta
+	if f, ok := featureMap["feature_beta"]; !ok {
+		t.Error("feature_beta not found")
+	} else {
+		if f.TotalLicenses != 50 {
+			t.Errorf("feature_beta: expected 50 total licenses, got %d", f.TotalLicenses)
+		}
+		if f.UsedLicenses != 12 {
+			t.Errorf("feature_beta: expected 12 used licenses, got %d", f.UsedLicenses)
+		}
+	}
+
+	// Check feature_gamma
+	if f, ok := featureMap["feature_gamma"]; !ok {
+		t.Error("feature_gamma not found")
+	} else {
+		if f.TotalLicenses != 25 {
+			t.Errorf("feature_gamma: expected 25 total licenses, got %d", f.TotalLicenses)
+		}
+		if f.UsedLicenses != 5 {
+			t.Errorf("feature_gamma: expected 5 used licenses, got %d", f.UsedLicenses)
+		}
+	}
+
+	// Verify expiration dates are set
+	for name, feature := range featureMap {
+		if feature.ExpirationDate.IsZero() {
+			t.Errorf("%s: expiration date not set", name)
+		}
+	}
+}
+
 func TestFlexLMParser_ErrorConditions(t *testing.T) {
 	testCases := []struct {
 		name           string

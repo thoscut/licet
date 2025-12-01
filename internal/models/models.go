@@ -40,6 +40,15 @@ type Feature struct {
 	LastUpdated    time.Time `db:"last_updated" json:"last_updated"`
 }
 
+// AvailableLicenses returns the number of available (unused) licenses
+func (f *Feature) AvailableLicenses() int {
+	available := f.TotalLicenses - f.UsedLicenses
+	if available < 0 {
+		return 0
+	}
+	return available
+}
+
 // FeatureUsage represents historical usage data
 type FeatureUsage struct {
 	ID             int64     `db:"id" json:"id"`
