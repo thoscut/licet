@@ -176,7 +176,17 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 			}
 
 			checkedOutStr := matches[3]
-			checkedOut, _ := time.Parse("01/02 15:04", checkedOutStr)
+			checkedOut, err := time.Parse("01/02 15:04", checkedOutStr)
+			if err != nil {
+				log.Debugf("Failed to parse RLM checkout time '%s': %v", checkedOutStr, err)
+				continue
+			}
+
+			// Since RLM doesn't include year, we need to set it to current year
+			now := time.Now()
+			checkedOut = time.Date(now.Year(), checkedOut.Month(), checkedOut.Day(),
+				checkedOut.Hour(), checkedOut.Minute(), checkedOut.Second(),
+				checkedOut.Nanosecond(), checkedOut.Location())
 
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,

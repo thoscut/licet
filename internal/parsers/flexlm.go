@@ -263,14 +263,19 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			host := strings.TrimSpace(matches[2])
 			checkedOutStr := strings.TrimSpace(matches[4])
 
+			// Parse the checkout time (format: "Mon 1/2 15:04")
 			checkedOut, err := time.Parse("Mon 1/2 15:04", checkedOutStr)
 			if err != nil {
-				// Try current year
-				checkedOut, _ = time.Parse("Mon 1/2 15:04", checkedOutStr)
-				if checkedOut.Year() == 0 {
-					checkedOut = checkedOut.AddDate(time.Now().Year(), 0, 0)
-				}
+				log.Debugf("Failed to parse checkout time '%s': %v", checkedOutStr, err)
+				continue
 			}
+
+			// Since FlexLM doesn't include year, we need to set it to current year
+			// The parsed time will have year 0, so we need to replace it
+			now := time.Now()
+			checkedOut = time.Date(now.Year(), checkedOut.Month(), checkedOut.Day(),
+				checkedOut.Hour(), checkedOut.Minute(), checkedOut.Second(),
+				checkedOut.Nanosecond(), checkedOut.Location())
 
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,
