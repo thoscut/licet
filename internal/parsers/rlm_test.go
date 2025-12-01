@@ -229,3 +229,162 @@ test v1.0: joe@library 1/0 at 07/06 13:27 (handle: 41)
 		t.Errorf("Expected minute %d, got %d", expectedMinute, user.CheckedOutAt.Minute())
 	}
 }
+
+func TestRLMParser_IgnoreUtilityNames(t *testing.T) {
+	// Test that utility names like "rlmutil" are not treated as features
+	output := `rlm status on server.example.com (port 5053)
+
+rlm software version v15.2
+
+foundry 5053 Yes 12345
+
+rlmutil v15.2
+count: 5, inuse: 2, exp: permanent
+
+arnold v20160712
+count: 10, inuse: 3, exp: 31-Dec-2025
+`
+
+	parser := NewRLMParser("")
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "server.example.com",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Check that we only have 1 feature (arnold), not 2 (should exclude rlmutil)
+	if len(result.Features) != 1 {
+		t.Errorf("Expected 1 feature, got %d", len(result.Features))
+		for _, f := range result.Features {
+			t.Logf("Found feature: %s", f.Name)
+		}
+	}
+
+	// Verify that the feature is arnold, not rlmutil
+	if len(result.Features) > 0 {
+		if result.Features[0].Name == "rlmutil" {
+			t.Error("rlmutil should not be treated as a feature")
+		}
+		if result.Features[0].Name != "arnold" {
+			t.Errorf("Expected feature 'arnold', got '%s'", result.Features[0].Name)
+		}
+	}
+}
+
+func TestRLMParser_FeatureHeaderWithAdditionalContent(t *testing.T) {
+	// Test that feature headers with additional content after version are matched
+	// This tests the fix for the regex being too restrictive with $ anchor
+	output := `rlm status on server.example.com (port 5053)
+
+rlm software version v15.2
+
+foundry 5053 Yes 12345
+
+arnold v20160712 issued: 31-Dec-2025
+count: 10, inuse: 3, exp: 31-Dec-2025
+
+maya v2024 floating
+count: 5, inuse: 2, exp: permanent
+
+nuke v13.2
+count: 20, inuse: 8, exp: 15-Jun-2026
+`
+
+	parser := NewRLMParser("")
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "server.example.com",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should find all 3 features despite additional content after version
+	if len(result.Features) != 3 {
+		t.Errorf("Expected 3 features, got %d", len(result.Features))
+		for _, f := range result.Features {
+			t.Logf("Found feature: %s (v%s)", f.Name, f.Version)
+		}
+	}
+
+	// Check all features are captured correctly
+	foundArnold := false
+	foundMaya := false
+	foundNuke := false
+
+	for _, f := range result.Features {
+		switch f.Name {
+		case "arnold":
+			foundArnold = true
+			if f.Version != "v20160712" {
+				t.Errorf("Expected arnold version 'v20160712', got '%s'", f.Version)
+			}
+		case "maya":
+			foundMaya = true
+			if f.Version != "v2024" {
+				t.Errorf("Expected maya version 'v2024', got '%s'", f.Version)
+			}
+		case "nuke":
+			foundNuke = true
+			if f.Version != "v13.2" {
+				t.Errorf("Expected nuke version 'v13.2', got '%s'", f.Version)
+			}
+		}
+	}
+
+	if !foundArnold {
+		t.Error("arnold feature not found")
+	}
+	if !foundMaya {
+		t.Error("maya feature not found")
+	}
+	if !foundNuke {
+		t.Error("nuke feature not found")
+	}
+}
+
+func TestRLMParser_DontMatchCheckoutLinesAsFeatures(t *testing.T) {
+	// Test that checkout lines (with colon after version) are NOT matched as features
+	output := `rlm status on server.example.com (port 5053)
+
+rlm software version v15.2
+
+foundry 5053 Yes 12345
+
+arnold v20160712
+count: 10, inuse: 2, exp: 31-Dec-2025
+
+arnold v20160712: user1@workstation1 1/0 at 12/01 09:15 (handle: 971)
+arnold v20160712: user2@workstation2 1/0 at 12/01 10:30 (handle: 972)
+`
+
+	parser := NewRLMParser("")
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "server.example.com",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should only find 1 feature (arnold), not count checkout lines as features
+	if len(result.Features) != 1 {
+		t.Errorf("Expected 1 feature, got %d", len(result.Features))
+		for _, f := range result.Features {
+			t.Logf("Found feature: %s", f.Name)
+		}
+	}
+
+	// Should find 2 users
+	if len(result.Users) != 2 {
+		t.Errorf("Expected 2 users, got %d", len(result.Users))
+	}
+}
