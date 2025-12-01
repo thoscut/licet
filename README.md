@@ -71,6 +71,59 @@ servers:
 
 See `config.example.yaml` for all available options.
 
+### Logging
+
+Licet supports multiple log levels for debugging and monitoring:
+
+```yaml
+logging:
+  level: info  # debug, info, warn, error
+  format: text  # text or json
+```
+
+**Log Levels:**
+
+- **debug** - Detailed information including:
+  - Commands executed (e.g., `lmutil lmstat -a -c server:port`)
+  - Raw command output from license servers
+  - Database operations (storing features, recording usage)
+  - Query results (service status, feature counts)
+  - Useful for troubleshooting license server connectivity and parsing issues
+
+- **info** - General informational messages:
+  - Server queries and collection progress
+  - Successfully completed operations
+  - Alert notifications
+
+- **warn** - Warning messages for non-critical issues
+
+- **error** - Error messages for failures
+
+**Example Debug Output:**
+
+```
+DEBUG Executing FlexLM command: /usr/local/bin/lmutil lmstat -i -a -c 27000@server.example.com
+DEBUG FlexLM command output for 27000@server.example.com:
+lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    License file(s) on server.example.com: ...
+DEBUG Query successful for 27000@server.example.com: service=up, features=15, users=8
+DEBUG Storing 15 features from 27000@server.example.com to database
+```
+
+To enable debug logging, edit your `config.yaml` and restart the server:
+
+```yaml
+logging:
+  level: debug
+```
+
+Or set via environment variable:
+
+```bash
+PLW_LOGGING_LEVEL=debug ./licet
+```
+
 ## API Endpoints
 
 ### REST API

@@ -39,24 +39,23 @@ func (p *FlexLMParser) Query(hostname string) models.ServerQueryResult {
 
 	// Execute lmstat command
 	cmd := exec.Command(p.lmutilPath, "lmstat", "-i", "-a", "-c", hostname)
-	stdout, err := cmd.StdoutPipe()
+
+	// Log command execution at debug level
+	log.Debugf("Executing FlexLM command: %s %s", p.lmutilPath, strings.Join(cmd.Args[1:], " "))
+
+	// Capture both stdout and stderr for debug logging
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		result.Error = fmt.Errorf("failed to create pipe: %w", err)
-		return result
+		log.Debugf("lmstat command finished with error: %v", err)
 	}
 
-	if err := cmd.Start(); err != nil {
-		result.Error = fmt.Errorf("failed to start lmstat: %w", err)
-		result.Status.Message = "Failed to execute lmstat"
-		return result
+	// Log raw output at debug level
+	if log.IsLevelEnabled(log.DebugLevel) && len(output) > 0 {
+		log.Debugf("FlexLM command output for %s:\n%s", hostname, string(output))
 	}
 
 	// Parse output
-	p.parseOutput(stdout, &result)
-
-	if err := cmd.Wait(); err != nil {
-		log.Debugf("lmstat command finished with error: %v", err)
-	}
+	p.parseOutput(strings.NewReader(string(output)), &result)
 
 	return result
 }

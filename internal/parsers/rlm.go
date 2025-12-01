@@ -38,23 +38,23 @@ func (p *RLMParser) Query(hostname string) models.ServerQueryResult {
 	}
 
 	cmd := exec.Command(p.rlmstatPath, "rlmstat", "-a", "-c", hostname)
-	stdout, err := cmd.StdoutPipe()
+
+	// Log command execution at debug level
+	log.Debugf("Executing RLM command: %s %s", p.rlmstatPath, strings.Join(cmd.Args[1:], " "))
+
+	// Capture both stdout and stderr for debug logging
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		result.Error = fmt.Errorf("failed to create pipe: %w", err)
-		return result
-	}
-
-	if err := cmd.Start(); err != nil {
-		result.Error = fmt.Errorf("failed to start rlmstat: %w", err)
-		result.Status.Message = "Failed to execute rlmstat"
-		return result
-	}
-
-	p.parseOutput(stdout, &result)
-
-	if err := cmd.Wait(); err != nil {
 		log.Debugf("rlmstat command finished with error: %v", err)
 	}
+
+	// Log raw output at debug level
+	if log.IsLevelEnabled(log.DebugLevel) && len(output) > 0 {
+		log.Debugf("RLM command output for %s:\n%s", hostname, string(output))
+	}
+
+	// Parse output
+	p.parseOutput(strings.NewReader(string(output)), &result)
 
 	return result
 }
