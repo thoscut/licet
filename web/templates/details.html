@@ -49,7 +49,18 @@
         <p><a href="/">&larr; Back to overview</a></p>
 
         {{if .Features}}
-        <h2>License Features</h2>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">License Features</h2>
+            <div class="btn-group" role="group">
+                {{if eq .SortBy "alpha"}}
+                    <a href="?sort=" class="btn btn-sm btn-outline-secondary">Default Order</a>
+                    <a href="?sort=alpha" class="btn btn-sm btn-primary active">Alphabetical</a>
+                {{else}}
+                    <a href="?sort=" class="btn btn-sm btn-primary active">Default Order</a>
+                    <a href="?sort=alpha" class="btn btn-sm btn-outline-secondary">Alphabetical</a>
+                {{end}}
+            </div>
+        </div>
         {{range .Features}}
         <div class="card mb-3">
             <div class="card-header">

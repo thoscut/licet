@@ -3,6 +3,7 @@ package handlers
 import (
 	"html/template"
 	"net/http"
+	"sort"
 
 	"github.com/go-chi/chi/v5"
 	log "github.com/sirupsen/logrus"
@@ -64,8 +65,16 @@ func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// sortFeaturesByName sorts features alphabetically by name
+func sortFeaturesByName(features []models.Feature) {
+	sort.Slice(features, func(i, j int) bool {
+		return features[i].Name < features[j].Name
+	})
+}
+
 func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 	hostname := chi.URLParam(r, "server")
+	sortBy := r.URL.Query().Get("sort")
 
 	// Find the server configuration to get the type
 	var serverType string
@@ -91,12 +100,18 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Sort features if requested
+		if sortBy == "alpha" {
+			sortFeaturesByName(features)
+		}
+
 		data := map[string]interface{}{
 			"Title":    "Server Details",
 			"Hostname": hostname,
 			"Features": features,
 			"Users":    []interface{}{}, // Empty users if query failed
 			"Error":    err.Error(),
+			"SortBy":   sortBy,
 		}
 
 		if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
@@ -105,11 +120,17 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sort features if requested
+	if sortBy == "alpha" {
+		sortFeaturesByName(result.Features)
+	}
+
 	data := map[string]interface{}{
 		"Title":    "Server Details",
 		"Hostname": hostname,
 		"Features": result.Features,
 		"Users":    result.Users,
+		"SortBy":   sortBy,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
