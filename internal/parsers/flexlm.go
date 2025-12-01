@@ -70,12 +70,21 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 	errorStatusRe := regexp.MustCompile(`Error getting status`)
 	vendorDownRe := regexp.MustCompile(`vendor daemon is down`)
 
-	// Feature patterns
-	featureRe := regexp.MustCompile(`users of\s+(.+?):\s+\(Total of (\d+) license[s]? issued;\s+Total of (\d+) license[s]? in use\)`)
-	uncountedRe := regexp.MustCompile(`users of\s+(.+?):\s+\(uncounted, node-locked\)`)
+	// Feature patterns (case-insensitive to match PHP behavior)
+	featureRe := regexp.MustCompile(`(?i)users of\s+(.+?):\s+\(Total of (\d+) license[s]? issued;\s+Total of (\d+) license[s]? in use\)`)
+	noFeatureRe := regexp.MustCompile(`(?i)no such feature exists`)
+	uncountedRe := regexp.MustCompile(`(?i)users of\s+(.+?):\s+\(uncounted, node-locked\)`)
 
-	// Expiration pattern
-	expirationRe := regexp.MustCompile(`(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\d+-\w+-\d+)\s+(\w+)`)
+	// Track the last feature name to handle "no such feature exists" on next line
+	var lastFeatureName string
+
+	// Expiration patterns - matching PHP's three patterns
+	// Old format: FEATURE VERSION COUNT DATE [VENDOR]
+	expirationOldRe := regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\d+-\w+-\d+)(?:\s+(\w+))?$`)
+	// New format: FEATURE VERSION COUNT VENDOR DATE
+	expirationNewRe := regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\w+)\s+(\d+-\w+-\d+)$`)
+	// Permanent: FEATURE VERSION COUNT VENDOR permanent
+	expirationPermRe := regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\w+)\s+(permanent)`)
 
 	// User pattern
 	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v\d+\.\d+\).*start\s+(\w+\s+\d+/\d+\s+\d+:\d+)`)
@@ -85,6 +94,13 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 	for scanner.Scan() {
 		line := scanner.Text()
+
+		// Check for "no such feature exists" and remove the last feature if found
+		if noFeatureRe.MatchString(line) && lastFeatureName != "" {
+			delete(featureMap, lastFeatureName)
+			lastFeatureName = ""
+			continue
+		}
 
 		// Check server status
 		if matches := serverUpRe.FindStringSubmatch(line); matches != nil {
@@ -139,6 +155,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			featureMap[featureName].TotalLicenses += total
 			featureMap[featureName].UsedLicenses += used
 			currentFeature = featureName
+			lastFeatureName = featureName // Track for "no such feature exists" check
 			continue
 		}
 
@@ -155,18 +172,63 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			continue
 		}
 
-		// Parse expiration dates
-		if matches := expirationRe.FindStringSubmatch(line); matches != nil {
-			featureName := matches[1]
-			version := matches[2]
-			numLicenses, _ := strconv.Atoi(matches[3])
-			expirationStr := strings.Replace(matches[4], "-jan-0", "-jan-2036", 1)
-			vendorDaemon := matches[5]
+		// Parse expiration dates - try all three patterns (matching PHP behavior)
+		var featureName, version, vendorDaemon, expirationStr string
+		var numLicenses int
+		var matched bool
 
-			expDate, err := time.Parse("2-Jan-2006", expirationStr)
-			if err != nil {
-				log.Debugf("Failed to parse expiration date '%s': %v", expirationStr, err)
-				expDate = time.Now().AddDate(100, 0, 0) // Far future for permanent
+		// Try permanent license pattern first
+		if matches := expirationPermRe.FindStringSubmatch(line); matches != nil {
+			featureName = matches[1]
+			version = matches[2]
+			numLicenses, _ = strconv.Atoi(matches[3])
+			vendorDaemon = matches[4]
+			expirationStr = "permanent"
+			matched = true
+		}
+
+		// Try new format: FEATURE VERSION COUNT VENDOR DATE
+		if !matched {
+			if matches := expirationNewRe.FindStringSubmatch(line); matches != nil {
+				featureName = matches[1]
+				version = matches[2]
+				numLicenses, _ = strconv.Atoi(matches[3])
+				vendorDaemon = matches[4]
+				expirationStr = matches[5]
+				matched = true
+			}
+		}
+
+		// Try old format: FEATURE VERSION COUNT DATE [VENDOR]
+		if !matched {
+			if matches := expirationOldRe.FindStringSubmatch(line); matches != nil {
+				featureName = matches[1]
+				version = matches[2]
+				numLicenses, _ = strconv.Atoi(matches[3])
+				expirationStr = matches[4]
+				if len(matches) > 5 && matches[5] != "" {
+					vendorDaemon = matches[5]
+				}
+				matched = true
+			}
+		}
+
+		if matched {
+			// Replace both -jan-0000 and -jan-0 with -jan-2036 (matching PHP behavior)
+			expirationStr = strings.Replace(expirationStr, "-jan-0000", "-jan-2036", 1)
+			expirationStr = strings.Replace(expirationStr, "-jan-0", "-jan-2036", 1)
+
+			var expDate time.Time
+			if strings.ToLower(expirationStr) == "permanent" {
+				// Set permanent licenses to far future date
+				expDate = time.Now().AddDate(100, 0, 0)
+			} else {
+				var err error
+				expDate, err = time.Parse("2-Jan-2006", expirationStr)
+				if err != nil {
+					log.Debugf("Failed to parse expiration date '%s': %v", expirationStr, err)
+					expDate = time.Now().AddDate(100, 0, 0) // Far future for unparseable dates
+				}
 			}
 
 			if feature, exists := featureMap[featureName]; exists {
