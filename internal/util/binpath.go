@@ -31,9 +31,9 @@ func FindBinary(baseName string) string {
 		searchPaths = append(searchPaths, filepath.Join("/usr/local/bin", baseName))
 	}
 
-	// Try each path
+	// Try each path and check if executable
 	for _, path := range searchPaths {
-		if fileExists(path) {
+		if isExecutable(path) {
 			return path
 		}
 	}
@@ -63,6 +63,29 @@ func fileExists(path string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+// isExecutable checks if a file exists and is executable
+// On Windows, only checks existence (executability is determined by extension)
+// On Unix/Linux, also checks the executable permission bit
+func isExecutable(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	// Must be a regular file
+	if !info.Mode().IsRegular() {
+		return false
+	}
+
+	// On Windows, executability is determined by file extension, not permissions
+	if runtime.GOOS == "windows" {
+		return true
+	}
+
+	// On Unix/Linux, check if any execute bit is set (owner, group, or other)
+	return info.Mode()&0111 != 0
 }
 
 // GetDefaultBinaryPaths returns a map of default binary paths for all supported license tools
