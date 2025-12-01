@@ -143,6 +143,7 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 	r.Get("/utilization", webHandler.Utilization)
 	r.Get("/denials", webHandler.Denials)
 	r.Get("/alerts", webHandler.Alerts)
+	r.Get("/statistics", webHandler.Statistics)
 	r.Get("/settings", webHandler.Settings)
 
 	// API routes
