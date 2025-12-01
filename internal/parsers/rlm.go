@@ -183,7 +183,8 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 			continue
 		}
 
-		if matches := userRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
+		if matches := userRe.FindStringSubmatch(line); matches != nil {
+			featureName := matches[1]
 			userHost := matches[2]
 			parts := strings.Split(userHost, "@")
 			username := parts[0]
@@ -207,7 +208,7 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,
-				FeatureName:    currentFeature,
+				FeatureName:    featureName,
 				Username:       username,
 				Host:           host,
 				CheckedOutAt:   checkedOut,
