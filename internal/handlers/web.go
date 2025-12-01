@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	log "github.com/sirupsen/logrus"
 	"github.com/thoscut/licet/internal/config"
+	"github.com/thoscut/licet/internal/models"
 	"github.com/thoscut/licet/internal/services"
 	"github.com/thoscut/licet/web"
 )
@@ -37,9 +38,24 @@ func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Query status for each server
+	type ServerWithStatus struct {
+		Server models.LicenseServer
+		Status models.ServerStatus
+	}
+
+	serversWithStatus := make([]ServerWithStatus, 0, len(servers))
+	for _, server := range servers {
+		result, _ := h.licenseService.QueryServer(server.Hostname, server.Type)
+		serversWithStatus = append(serversWithStatus, ServerWithStatus{
+			Server: server,
+			Status: result.Status,
+		})
+	}
+
 	data := map[string]interface{}{
 		"Title":   "License Server Status",
-		"Servers": servers,
+		"Servers": serversWithStatus,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "index.html", data); err != nil {

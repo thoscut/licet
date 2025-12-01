@@ -45,7 +45,16 @@
     </nav>
 
     <div class="container">
-        <h1>License Server Status Overview</h1>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1>License Server Status Overview</h1>
+            <button onclick="location.reload()" class="btn btn-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                    <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                </svg>
+                Refresh
+            </button>
+        </div>
         <p>Click on a server name to view details.</p>
 
         <table class="table table-striped">
@@ -60,14 +69,27 @@
             </thead>
             <tbody>
                 {{range .Servers}}
-                <tr>
-                    <td>{{.Hostname}}</td>
-                    <td>{{.Description}}</td>
-                    <td>{{.Type}}</td>
-                    <td><span class="badge bg-secondary">Unknown</span></td>
+                <tr class="status-{{.Status.Service}}">
+                    <td>{{.Server.Hostname}}</td>
+                    <td>{{.Server.Description}}</td>
+                    <td>{{.Server.Type}}</td>
                     <td>
-                        <a href="/details/{{.Hostname}}" class="btn btn-sm btn-primary">Details</a>
-                        <a href="/expiration/{{.Hostname}}" class="btn btn-sm btn-info">Expiration</a>
+                        {{if eq .Status.Service "up"}}
+                            <span class="badge bg-success">UP</span>
+                            {{if .Status.Version}}<small class="text-muted">v{{.Status.Version}}</small>{{end}}
+                        {{else if eq .Status.Service "down"}}
+                            <span class="badge bg-danger">DOWN</span>
+                            {{if .Status.Message}}<br><small class="text-danger">{{.Status.Message}}</small>{{end}}
+                        {{else if eq .Status.Service "warning"}}
+                            <span class="badge bg-warning">WARNING</span>
+                            {{if .Status.Message}}<br><small class="text-warning">{{.Status.Message}}</small>{{end}}
+                        {{else}}
+                            <span class="badge bg-secondary">Unknown</span>
+                        {{end}}
+                    </td>
+                    <td>
+                        <a href="/details/{{.Server.Hostname}}" class="btn btn-sm btn-primary">Details</a>
+                        <a href="/expiration/{{.Server.Hostname}}" class="btn btn-sm btn-info">Expiration</a>
                     </td>
                 </tr>
                 {{end}}
