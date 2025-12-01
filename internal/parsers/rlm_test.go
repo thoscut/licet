@@ -18,13 +18,13 @@ Up for: 5 hours
 
 foundry 5053 Yes 12345
 
-arnold v20160712
+arnold v20160712 license pool status
 count: 10, inuse: 2, exp: 31-Dec-2025
 
 arnold v20160712: user1@workstation1 1/0 at 12/01 09:15 (handle: 971)
 arnold v20160712: user2@workstation2 1/0 at 12/01 10:30 (handle: 972)
 
-maya v2023
+maya v2023 license pool status
 UNCOUNTED, inuse: 1, exp: permanent
 
 maya v2023: joe@library 1/0 at 12/01 08:45 (handle: 41)
@@ -134,7 +134,7 @@ rlm software version v15.2 (build 1)
 
 foundry 5053 Yes 12345
 
-arnold v20160712
+arnold v20160712 license pool status
 count: 10, inuse: 0, exp: 31-Dec-2025
 `
 
@@ -173,7 +173,7 @@ rlm software version v15.2
 
 foundry 5053 Yes 12345
 
-test v1.0
+test v1.0 license pool status
 count: 5, inuse: 1, exp: permanent
 
 test v1.0: joe@library 1/0 at 07/06 13:27 (handle: 41)
@@ -238,10 +238,10 @@ rlm software version v15.2
 
 foundry 5053 Yes 12345
 
-rlmutil v15.2
+rlmutil v15.2 license pool status
 count: 5, inuse: 2, exp: permanent
 
-arnold v20160712
+arnold v20160712 license pool status
 count: 10, inuse: 3, exp: 31-Dec-2025
 `
 
@@ -277,20 +277,20 @@ count: 10, inuse: 3, exp: 31-Dec-2025
 
 func TestRLMParser_FeatureHeaderWithAdditionalContent(t *testing.T) {
 	// Test that feature headers with additional content after version are matched
-	// This tests the fix for the regex being too restrictive with $ anchor
+	// This tests that lines with "pool" in them are properly parsed as feature headers
 	output := `rlm status on server.example.com (port 5053)
 
 rlm software version v15.2
 
 foundry 5053 Yes 12345
 
-arnold v20160712 issued: 31-Dec-2025
+arnold v20160712 license pool status (issued: 31-Dec-2025)
 count: 10, inuse: 3, exp: 31-Dec-2025
 
-maya v2024 floating
+maya v2024 floating license pool
 count: 5, inuse: 2, exp: permanent
 
-nuke v13.2
+nuke v13.2 license pool status
 count: 20, inuse: 8, exp: 15-Jun-2026
 `
 
@@ -357,7 +357,7 @@ rlm software version v15.2
 
 foundry 5053 Yes 12345
 
-arnold v20160712
+arnold v20160712 license pool status
 count: 10, inuse: 2, exp: 31-Dec-2025
 
 arnold v20160712: user1@workstation1 1/0 at 12/01 09:15 (handle: 971)
