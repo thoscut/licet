@@ -196,6 +196,12 @@ func (h *WebHandler) Alerts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
+	// Check if settings page is enabled
+	if !h.cfg.Server.SettingsEnabled {
+		http.Error(w, "Settings page is disabled", http.StatusForbidden)
+		return
+	}
+
 	servers, err := h.licenseService.GetAllServers()
 	if err != nil {
 		http.Error(w, "Failed to get servers", http.StatusInternalServerError)
