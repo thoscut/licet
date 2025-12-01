@@ -158,13 +158,17 @@ func (s *LicenseService) GetFeatures(hostname string) ([]models.Feature, error) 
 func (s *LicenseService) GetFeaturesWithExpiration(hostname string) ([]models.Feature, error) {
 	var features []models.Feature
 	query := `
-		SELECT id, server_hostname, name, version, vendor_daemon,
-		       total_licenses, used_licenses, expiration_date, last_updated
-		FROM features
-		WHERE server_hostname = ?
-		  AND expiration_date IS NOT NULL
-		GROUP BY server_hostname, name, version, expiration_date
-		ORDER BY expiration_date ASC, name ASC
+		SELECT f.id, f.server_hostname, f.name, f.version, f.vendor_daemon,
+		       f.total_licenses, f.used_licenses, f.expiration_date, f.last_updated
+		FROM features f
+		INNER JOIN (
+			SELECT server_hostname, name, version, expiration_date, MAX(id) as max_id
+			FROM features
+			WHERE server_hostname = ?
+			  AND expiration_date IS NOT NULL
+			GROUP BY server_hostname, name, version, expiration_date
+		) latest ON f.id = latest.max_id
+		ORDER BY f.expiration_date ASC, f.name ASC
 	`
 	err := s.db.Select(&features, query, hostname)
 	return features, err
