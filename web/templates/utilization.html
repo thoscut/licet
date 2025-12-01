@@ -98,25 +98,34 @@
         <!-- Filters Section -->
         <div class="filter-section">
             <div class="row">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="serverFilter" class="form-label">Filter by Server</label>
                     <select id="serverFilter" class="form-select">
                         <option value="">All Servers</option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="periodFilter" class="form-label">Time Period</label>
                     <select id="periodFilter" class="form-select">
                         <option value="7d">Last 7 Days</option>
                         <option value="30d" selected>Last 30 Days</option>
                         <option value="90d">Last 90 Days</option>
                         <option value="1y">Last Year</option>
+                        <option value="custom">Custom Range</option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-4" id="customDateRange" style="display: none;">
+                    <label class="form-label">Custom Date Range</label>
+                    <div class="input-group">
+                        <input type="date" id="startDate" class="form-control" placeholder="Start">
+                        <span class="input-group-text">to</span>
+                        <input type="date" id="endDate" class="form-control" placeholder="End">
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <label class="form-label">&nbsp;</label>
                     <button id="refreshBtn" class="btn btn-primary w-100">
-                        <span id="refreshIcon">🔄</span> Refresh Data
+                        <span id="refreshIcon">🔄</span> Refresh
                     </button>
                 </div>
             </div>
@@ -178,6 +187,60 @@
 
         <hr class="my-4">
 
+        <!-- Predictive Analytics Section -->
+        <div id="predictionsSection">
+            <h2>Predictive Analytics & Forecasting</h2>
+            <p class="text-muted">View trend forecasts and anomaly detection for specific features</p>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="predictionFeatureSelect" class="form-label">Select Feature for Prediction:</label>
+                    <select id="predictionFeatureSelect" class="form-select">
+                        <option value="">Select a feature...</option>
+                    </select>
+                </div>
+            </div>
+            <div id="predictionResults" style="display: none;">
+                <!-- Capacity Warning -->
+                <div id="capacityWarning" class="alert alert-warning" style="display: none;">
+                    <strong>⚠️ Capacity Warning:</strong> <span id="capacityMessage"></span>
+                </div>
+
+                <!-- Forecast Chart -->
+                <div class="mb-4">
+                    <h5>Usage Forecast (Next 30 Days)</h5>
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="forecastChart"></canvas>
+                    </div>
+                    <p class="text-muted small mt-2">
+                        Trend: <span id="trendInfo"></span> |
+                        Confidence: <span id="confidenceInfo"></span>
+                    </p>
+                </div>
+
+                <!-- Anomalies Table -->
+                <div id="anomaliesSection" style="display: none;">
+                    <h5>Detected Anomalies</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Actual Usage</th>
+                                    <th>Expected</th>
+                                    <th>Deviation</th>
+                                    <th>Severity</th>
+                                </tr>
+                            </thead>
+                            <tbody id="anomaliesTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="my-4">
+
         <!-- Statistics Table Section -->
         <div id="statsSection">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -223,9 +286,11 @@
         // Global variables
         let utilizationChart = null;
         let heatmapChart = null;
+        let forecastChart = null;
         let currentUtilizationData = [];
         let statsData = [];
         let heatmapData = [];
+        let predictionsData = null;
         let allServers = new Set();
         let selectedFeatures = new Set();
 
@@ -241,13 +306,30 @@
                 loadData();
             });
             document.getElementById('periodFilter').addEventListener('change', function() {
-                saveUserPreferences();
-                loadData();
+                const customRange = document.getElementById('customDateRange');
+                if (this.value === 'custom') {
+                    customRange.style.display = 'block';
+                } else {
+                    customRange.style.display = 'none';
+                    saveUserPreferences();
+                    loadData();
+                }
+            });
+            document.getElementById('startDate').addEventListener('change', function() {
+                if (document.getElementById('periodFilter').value === 'custom') {
+                    loadData();
+                }
+            });
+            document.getElementById('endDate').addEventListener('change', function() {
+                if (document.getElementById('periodFilter').value === 'custom') {
+                    loadData();
+                }
             });
             document.getElementById('refreshBtn').addEventListener('click', loadData);
             document.getElementById('exportCurrentBtn').addEventListener('click', exportCurrentToCSV);
             document.getElementById('exportStatsBtn').addEventListener('click', exportStatsToCSV);
             document.getElementById('heatmapFeatureSelect').addEventListener('change', loadHeatmapForFeature);
+            document.getElementById('predictionFeatureSelect').addEventListener('change', loadPredictions);
         });
 
         // Load available servers
@@ -338,6 +420,7 @@
 
             // Update feature selector
             updateFeatureSelector();
+            updatePredictionFeatureSelector();
         }
 
         // Update feature selector checkboxes
@@ -794,6 +877,180 @@
             } catch (error) {
                 console.error('Error loading preferences:', error);
             }
+        }
+
+        // Update prediction feature selector
+        function updatePredictionFeatureSelector() {
+            const select = document.getElementById('predictionFeatureSelect');
+            select.innerHTML = '<option value="">Select a feature...</option>';
+
+            currentUtilizationData.forEach(item => {
+                const option = document.createElement('option');
+                option.value = `${item.server_hostname}:${item.feature_name}`;
+                option.textContent = `${item.feature_name} (${item.server_hostname})`;
+                select.appendChild(option);
+            });
+        }
+
+        // Load predictions for selected feature
+        async function loadPredictions() {
+            const select = document.getElementById('predictionFeatureSelect');
+            const value = select.value;
+
+            if (!value) {
+                document.getElementById('predictionResults').style.display = 'none';
+                return;
+            }
+
+            const [server, feature] = value.split(':');
+            const period = document.getElementById('periodFilter').value;
+
+            let days = 30;
+            switch(period) {
+                case '7d': days = 7; break;
+                case '30d': days = 30; break;
+                case '90d': days = 90; break;
+                case '1y': days = 365; break;
+            }
+
+            try {
+                const url = `/api/v1/utilization/predictions?server=${encodeURIComponent(server)}&feature=${encodeURIComponent(feature)}&days=${days}`;
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error('Failed to load predictions');
+                }
+
+                predictionsData = await response.json();
+                displayPredictions();
+            } catch (error) {
+                console.error('Error loading predictions:', error);
+                alert('Unable to load predictions. Ensure sufficient historical data exists (minimum 7 days).');
+            }
+        }
+
+        // Display predictions
+        function displayPredictions() {
+            if (!predictionsData) return;
+
+            document.getElementById('predictionResults').style.display = 'block';
+
+            // Display capacity warning
+            if (predictionsData.days_to_capacity > 0 && predictionsData.days_to_capacity < 90) {
+                const warning = document.getElementById('capacityWarning');
+                const message = document.getElementById('capacityMessage');
+                message.textContent = `This feature is projected to reach capacity in approximately ${predictionsData.days_to_capacity} days based on current trends.`;
+                warning.style.display = 'block';
+            } else {
+                document.getElementById('capacityWarning').style.display = 'none';
+            }
+
+            // Display trend info
+            const trendDirection = predictionsData.trend_slope > 0.1 ? '📈 Increasing' :
+                                 predictionsData.trend_slope < -0.1 ? '📉 Decreasing' : '➡️ Stable';
+            document.getElementById('trendInfo').textContent = `${trendDirection} (${predictionsData.trend_slope.toFixed(3)} licenses/day)`;
+            document.getElementById('confidenceInfo').textContent = `${(predictionsData.confidence_level * 100).toFixed(1)}%`;
+
+            // Display forecast chart
+            displayForecastChart();
+
+            // Display anomalies
+            if (predictionsData.anomalies && predictionsData.anomalies.length > 0) {
+                document.getElementById('anomaliesSection').style.display = 'block';
+                const tbody = document.getElementById('anomaliesTableBody');
+                tbody.innerHTML = '';
+
+                predictionsData.anomalies.forEach(anomaly => {
+                    const severityClass = anomaly.severity === 'high' ? 'danger' :
+                                        anomaly.severity === 'medium' ? 'warning' : 'info';
+                    const row = `
+                        <tr>
+                            <td>${anomaly.date}</td>
+                            <td>${anomaly.usage}</td>
+                            <td>${anomaly.expected.toFixed(1)}</td>
+                            <td>${anomaly.deviation.toFixed(2)}σ</td>
+                            <td><span class="badge bg-${severityClass}">${anomaly.severity}</span></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } else {
+                document.getElementById('anomaliesSection').style.display = 'none';
+            }
+        }
+
+        // Display forecast chart
+        function displayForecastChart() {
+            if (!predictionsData || !predictionsData.forecast) return;
+
+            const ctx = document.getElementById('forecastChart').getContext('2d');
+
+            if (forecastChart) {
+                forecastChart.destroy();
+            }
+
+            const labels = predictionsData.forecast.map(f => f.date);
+            const predictions = predictionsData.forecast.map(f => f.predicted_usage);
+
+            // Add capacity line
+            const capacityLine = new Array(labels.length).fill(predictionsData.total_licenses);
+
+            forecastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Forecasted Usage',
+                            data: predictions,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Total Capacity',
+                            data: capacityLine,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderDash: [5, 5],
+                            borderWidth: 2,
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${predictionsData.feature_name} - Usage Forecast`
+                        },
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Licenses'
+                            },
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
         }
     </script>
 </body>
