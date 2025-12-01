@@ -204,7 +204,7 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 			now := time.Now()
 			checkedOut = time.Date(now.Year(), checkedOut.Month(), checkedOut.Day(),
 				checkedOut.Hour(), checkedOut.Minute(), checkedOut.Second(),
-				checkedOut.Nanosecond(), checkedOut.Location())
+				checkedOut.Nanosecond(), time.Local)
 
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,

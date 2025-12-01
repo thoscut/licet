@@ -80,21 +80,16 @@
             {{end}}
         {{end}}
         <div class="card mb-2 feature-card" data-has-checkouts="{{$hasCheckouts}}">
-            <div class="card-header py-2">
-                <strong>{{.Name}}</strong>
-                {{if .Version}}<span class="badge bg-secondary ms-2">v{{.Version}}</span>{{end}}
+            <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>{{.Name}}</strong>
+                    {{if .Version}}<span class="badge bg-secondary ms-2">v{{.Version}}</span>{{end}}
+                    <span class="ms-3 text-muted">Total:</span> <span class="fw-bold">{{.TotalLicenses}}</span>
+                    <span class="ms-2 text-muted">Used:</span> <span class="fw-bold">{{.UsedLicenses}}</span>
+                    <span class="ms-2 text-muted">Available:</span> <span class="fw-bold">{{.AvailableLicenses}}</span>
+                </div>
             </div>
             <div class="card-body p-2">
-                <table class="table table-sm table-borderless mb-2">
-                    <tr>
-                        <td class="text-muted" style="width: 120px;">Total Licenses:</td>
-                        <td style="width: 60px;">{{.TotalLicenses}}</td>
-                        <td class="text-muted" style="width: 60px;">Used:</td>
-                        <td style="width: 60px;">{{.UsedLicenses}}</td>
-                        <td class="text-muted" style="width: 80px;">Available:</td>
-                        <td>{{.AvailableLicenses}}</td>
-                    </tr>
-                </table>
 
                 {{if $.Users}}
                     {{$hasCheckoutsInner := false}}
