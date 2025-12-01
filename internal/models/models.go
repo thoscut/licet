@@ -49,6 +49,14 @@ func (f *Feature) AvailableLicenses() int {
 	return available
 }
 
+// DaysToExpiration returns the number of days until the license expires
+// Returns negative number if already expired
+func (f *Feature) DaysToExpiration() int {
+	duration := time.Until(f.ExpirationDate)
+	days := int(duration.Hours() / 24)
+	return days
+}
+
 // FeatureUsage represents historical usage data
 type FeatureUsage struct {
 	ID             int64     `db:"id" json:"id"`
