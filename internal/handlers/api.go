@@ -132,3 +132,106 @@ func Health() http.HandlerFunc {
 		})
 	}
 }
+
+// GetCurrentUtilization returns current utilization for all features across all servers
+func GetCurrentUtilization(licenseService *services.LicenseService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		serverFilter := r.URL.Query().Get("server")
+
+		utilization, err := licenseService.GetCurrentUtilization(serverFilter)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"utilization": utilization,
+		})
+	}
+}
+
+// GetUtilizationHistory returns time-series usage data for charting
+func GetUtilizationHistory(licenseService *services.LicenseService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		server := r.URL.Query().Get("server")
+		feature := r.URL.Query().Get("feature")
+		periodStr := r.URL.Query().Get("period")
+
+		// Default to 7 days
+		days := 7
+		switch periodStr {
+		case "7d":
+			days = 7
+		case "30d":
+			days = 30
+		case "90d":
+			days = 90
+		case "1y":
+			days = 365
+		}
+
+		history, err := licenseService.GetUtilizationHistory(server, feature, days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"history": history,
+		})
+	}
+}
+
+// GetUtilizationStats returns aggregated statistics
+func GetUtilizationStats(licenseService *services.LicenseService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		server := r.URL.Query().Get("server")
+		daysStr := r.URL.Query().Get("days")
+
+		days := 30
+		if daysStr != "" {
+			if d, err := strconv.Atoi(daysStr); err == nil {
+				days = d
+			}
+		}
+
+		stats, err := licenseService.GetUtilizationStats(server, days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"stats": stats,
+		})
+	}
+}
+
+// GetUtilizationHeatmap returns hour-of-day usage patterns for heatmap visualization
+func GetUtilizationHeatmap(licenseService *services.LicenseService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		server := r.URL.Query().Get("server")
+		daysStr := r.URL.Query().Get("days")
+
+		days := 7 // Default to last 7 days for heatmap
+		if daysStr != "" {
+			if d, err := strconv.Atoi(daysStr); err == nil {
+				days = d
+			}
+		}
+
+		heatmap, err := licenseService.GetHeatmapData(server, days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"heatmap": heatmap,
+		})
+	}
+}

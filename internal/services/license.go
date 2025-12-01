@@ -199,3 +199,180 @@ func (s *LicenseService) GetFeatureUsageHistory(hostname, featureName string, da
 	err := s.db.Select(&usage, query, hostname, featureName, cutoff)
 	return usage, err
 }
+
+// GetCurrentUtilization returns current utilization for all features across all servers
+func (s *LicenseService) GetCurrentUtilization(serverFilter string) ([]models.UtilizationData, error) {
+	var utilization []models.UtilizationData
+
+	query := `
+		SELECT
+			server_hostname,
+			name as feature_name,
+			total_licenses,
+			used_licenses,
+			(total_licenses - used_licenses) as available_licenses,
+			CASE
+				WHEN total_licenses > 0 THEN (used_licenses * 100.0 / total_licenses)
+				ELSE 0
+			END as utilization_pct,
+			vendor_daemon
+		FROM features
+		WHERE total_licenses > 0
+	`
+
+	args := []interface{}{}
+	if serverFilter != "" {
+		query += " AND server_hostname = ?"
+		args = append(args, serverFilter)
+	}
+
+	query += " ORDER BY utilization_pct DESC, feature_name ASC"
+
+	err := s.db.Select(&utilization, query, args...)
+	return utilization, err
+}
+
+// GetUtilizationHistory returns time-series usage data for charting
+func (s *LicenseService) GetUtilizationHistory(server, feature string, days int) ([]models.UtilizationHistoryPoint, error) {
+	var history []models.UtilizationHistoryPoint
+	cutoff := time.Now().AddDate(0, 0, -days)
+
+	query := `
+		SELECT
+			datetime(date || ' ' || time) as timestamp,
+			users_count
+		FROM feature_usage
+		WHERE 1=1
+	`
+
+	args := []interface{}{}
+	if server != "" {
+		query += " AND server_hostname = ?"
+		args = append(args, server)
+	}
+	if feature != "" {
+		query += " AND feature_name = ?"
+		args = append(args, feature)
+	}
+
+	query += " AND date >= ? ORDER BY date ASC, time ASC"
+	args = append(args, cutoff.Format("2006-01-02"))
+
+	err := s.db.Select(&history, query, args...)
+	return history, err
+}
+
+// GetUtilizationStats returns aggregated statistics
+func (s *LicenseService) GetUtilizationStats(server string, days int) ([]models.UtilizationStats, error) {
+	var stats []models.UtilizationStats
+	cutoff := time.Now().AddDate(0, 0, -days)
+
+	query := `
+		SELECT
+			fu.server_hostname,
+			fu.feature_name,
+			AVG(fu.users_count) as avg_usage,
+			MAX(fu.users_count) as peak_usage,
+			MIN(fu.users_count) as min_usage,
+			(SELECT total_licenses FROM features
+			 WHERE server_hostname = fu.server_hostname
+			   AND name = fu.feature_name
+			 LIMIT 1) as total_licenses
+		FROM feature_usage fu
+		WHERE fu.date >= ?
+	`
+
+	args := []interface{}{cutoff.Format("2006-01-02")}
+	if server != "" {
+		query += " AND fu.server_hostname = ?"
+		args = append(args, server)
+	}
+
+	query += " GROUP BY fu.server_hostname, fu.feature_name ORDER BY avg_usage DESC"
+
+	err := s.db.Select(&stats, query, args...)
+	return stats, err
+}
+
+// GetHeatmapData returns hour-of-day usage patterns for heatmap visualization
+func (s *LicenseService) GetHeatmapData(server string, days int) ([]models.HeatmapData, error) {
+	cutoff := time.Now().AddDate(0, 0, -days)
+
+	// First, get all unique features
+	featuresQuery := `
+		SELECT DISTINCT server_hostname, feature_name
+		FROM feature_usage
+		WHERE date >= ?
+	`
+	args := []interface{}{cutoff.Format("2006-01-02")}
+	if server != "" {
+		featuresQuery += " AND server_hostname = ?"
+		args = append(args, server)
+	}
+
+	type featureKey struct {
+		ServerHostname string `db:"server_hostname"`
+		FeatureName    string `db:"feature_name"`
+	}
+	var features []featureKey
+	if err := s.db.Select(&features, featuresQuery, args...); err != nil {
+		return nil, err
+	}
+
+	// For each feature, get hourly usage patterns
+	var heatmapData []models.HeatmapData
+
+	for _, feature := range features {
+		hourlyQuery := `
+			SELECT
+				CAST(strftime('%H', time) AS INTEGER) as hour,
+				AVG(users_count) as avg_usage,
+				MAX(users_count) as peak_usage
+			FROM feature_usage
+			WHERE server_hostname = ?
+			  AND feature_name = ?
+			  AND date >= ?
+			GROUP BY hour
+			ORDER BY hour
+		`
+
+		var hourlyData []models.HeatmapHourly
+		err := s.db.Select(&hourlyData, hourlyQuery,
+			feature.ServerHostname,
+			feature.FeatureName,
+			cutoff.Format("2006-01-02"))
+
+		if err != nil {
+			log.Errorf("Failed to get heatmap data for %s:%s: %v",
+				feature.ServerHostname, feature.FeatureName, err)
+			continue
+		}
+
+		// Ensure we have data for all 24 hours (fill in zeros for missing hours)
+		hourlyMap := make(map[int]models.HeatmapHourly)
+		for _, h := range hourlyData {
+			hourlyMap[h.Hour] = h
+		}
+
+		completeHourly := make([]models.HeatmapHourly, 24)
+		for hour := 0; hour < 24; hour++ {
+			if data, exists := hourlyMap[hour]; exists {
+				completeHourly[hour] = data
+			} else {
+				completeHourly[hour] = models.HeatmapHourly{
+					Hour:      hour,
+					AvgUsage:  0,
+					PeakUsage: 0,
+				}
+			}
+		}
+
+		heatmapData = append(heatmapData, models.HeatmapData{
+			ServerHostname: feature.ServerHostname,
+			FeatureName:    feature.FeatureName,
+			HourlyData:     completeHourly,
+		})
+	}
+
+	return heatmapData, nil
+}
