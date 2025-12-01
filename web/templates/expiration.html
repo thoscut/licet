@@ -12,6 +12,29 @@
         .status-warning { background-color: #fff3cd; }
         .expiring-soon { background-color: #fff3cd; }
         .expired { background-color: #f8d7da; }
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 20px;
+        }
+        th.sortable:hover {
+            background-color: #e9ecef;
+        }
+        th.sortable::after {
+            content: '⇅';
+            position: absolute;
+            right: 5px;
+            opacity: 0.3;
+        }
+        th.sortable.asc::after {
+            content: '↑';
+            opacity: 1;
+        }
+        th.sortable.desc::after {
+            content: '↓';
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -52,15 +75,15 @@
 
         {{if .Features}}
         <h2>License Expiration Dates</h2>
-        <table class="table table-striped">
+        <table class="table table-striped" id="expirationTable">
             <thead>
                 <tr>
-                    <th>Feature</th>
-                    <th>Version</th>
-                    <th>Expiration Date</th>
-                    <th>Licenses</th>
-                    <th>Days Until Expiration</th>
-                    <th>Status</th>
+                    <th class="sortable" data-column="0" data-type="string">Feature</th>
+                    <th class="sortable" data-column="1" data-type="string">Version</th>
+                    <th class="sortable" data-column="2" data-type="date">Expiration Date</th>
+                    <th class="sortable" data-column="3" data-type="number">Licenses</th>
+                    <th class="sortable" data-column="4" data-type="number">Days Until Expiration</th>
+                    <th class="sortable" data-column="5" data-type="string">Status</th>
                 </tr>
             </thead>
             <tbody>
@@ -100,5 +123,70 @@
     </div>
 
     <script src="/static/js/bootstrap.min.js"></script>
+    <script>
+        // Table sorting functionality (no external dependencies)
+        (function() {
+            const table = document.getElementById('expirationTable');
+            if (!table) return;
+
+            const headers = table.querySelectorAll('th.sortable');
+            const tbody = table.querySelector('tbody');
+            let currentSort = { column: -1, direction: 'asc' };
+
+            headers.forEach(header => {
+                header.addEventListener('click', function() {
+                    const column = parseInt(this.getAttribute('data-column'));
+                    const type = this.getAttribute('data-type');
+
+                    // Determine sort direction
+                    let direction = 'asc';
+                    if (currentSort.column === column && currentSort.direction === 'asc') {
+                        direction = 'desc';
+                    }
+
+                    // Update sort state
+                    currentSort = { column, direction };
+
+                    // Remove sort classes from all headers
+                    headers.forEach(h => h.classList.remove('asc', 'desc'));
+
+                    // Add sort class to current header
+                    this.classList.add(direction);
+
+                    // Sort the table
+                    sortTable(column, direction, type);
+                });
+            });
+
+            function sortTable(column, direction, type) {
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+
+                rows.sort((a, b) => {
+                    const aCell = a.cells[column];
+                    const bCell = b.cells[column];
+
+                    let aValue, bValue;
+
+                    if (type === 'number') {
+                        aValue = parseFloat(aCell.textContent) || 0;
+                        bValue = parseFloat(bCell.textContent) || 0;
+                    } else if (type === 'date') {
+                        aValue = new Date(aCell.textContent);
+                        bValue = new Date(bCell.textContent);
+                    } else {
+                        aValue = aCell.textContent.trim().toLowerCase();
+                        bValue = bCell.textContent.trim().toLowerCase();
+                    }
+
+                    if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+                    if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+
+                // Re-append rows in sorted order
+                rows.forEach(row => tbody.appendChild(row));
+            }
+        })();
+    </script>
 </body>
 </html>
