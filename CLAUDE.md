@@ -484,6 +484,16 @@ server {
 
 ## Testing and Debugging
 
+### ⚠️ CRITICAL: All Tests Must Pass
+
+**All tests must always pass before committing any code changes.** This is a non-negotiable requirement.
+
+- Run `go test ./...` before every commit
+- If a test fails, fix the code or the test before proceeding
+- Never commit code with failing tests
+- When adding new functionality, add corresponding tests
+- When fixing bugs, add tests to prevent regression
+
 ### Running Tests
 
 ```bash
@@ -584,6 +594,13 @@ Based on recent commit history:
    - Added licet binary to .gitignore
 
 ## Code Conventions and Patterns
+
+### Testing Requirements
+- **ALL TESTS MUST PASS** - Run `go test ./...` before every commit
+- Never commit code with failing tests
+- Add tests for new functionality
+- Add regression tests when fixing bugs
+- Aim for high test coverage on critical code paths
 
 ### Go Style
 - Follow standard Go formatting: `go fmt`
@@ -715,20 +732,21 @@ The Go version significantly outperforms the PHP version:
 
 ## Notes for AI Assistants
 
-1. **This is modern Go code** - Follow Go best practices and idioms
-2. **Strong typing** - Leverage Go's type system for safety
-3. **Testing** - Write tests for new functionality
-4. **Parser pattern** - All license types implement Parser interface
-5. **Configuration** - Use Viper for config management
-6. **Database** - Use sqlx for all database operations
-7. **HTTP** - Chi router for all routing
-8. **Templates** - Go html/template with Bootstrap
-9. **Logging** - Structured logging with logrus
-10. **Error handling** - Always handle errors, never panic in HTTP handlers
-11. **Context** - Use context.Context for cancellation and timeouts
-12. **Concurrency** - Use goroutines carefully, avoid race conditions
-13. **Recent focus** - RLM parser fixes and UI improvements
-14. **No PHP** - Project completely migrated from PHP to Go
+1. **⚠️ ALL TESTS MUST PASS** - Before committing any changes, run `go test ./...` and ensure ALL tests pass. This is MANDATORY. Never commit code with failing tests.
+2. **This is modern Go code** - Follow Go best practices and idioms
+3. **Strong typing** - Leverage Go's type system for safety
+4. **Testing** - Write tests for new functionality; add regression tests for bug fixes
+5. **Parser pattern** - All license types implement Parser interface
+6. **Configuration** - Use Viper for config management
+7. **Database** - Use sqlx for all database operations
+8. **HTTP** - Chi router for all routing
+9. **Templates** - Go html/template with Bootstrap
+10. **Logging** - Structured logging with logrus
+11. **Error handling** - Always handle errors, never panic in HTTP handlers
+12. **Context** - Use context.Context for cancellation and timeouts
+13. **Concurrency** - Use goroutines carefully, avoid race conditions
+14. **Recent focus** - RLM parser fixes and UI improvements
+15. **No PHP** - Project completely migrated from PHP to Go
 
 ## Version History
 
