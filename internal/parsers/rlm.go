@@ -128,13 +128,13 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 
 			var expDate time.Time
 			if expirationStr == "permanent" {
-				expDate = time.Now().AddDate(100, 0, 0)
+				expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
 			} else {
 				var err error
 				expDate, err = time.Parse("2-Jan-2006", expirationStr)
 				if err != nil {
 					log.Debugf("Failed to parse expiration: %v", err)
-					expDate = time.Now().AddDate(100, 0, 0)
+					expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
 				}
 			}
 
@@ -160,13 +160,13 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 
 			var expDate time.Time
 			if expirationStr == "permanent" {
-				expDate = time.Now().AddDate(100, 0, 0)
+				expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
 			} else {
 				var err error
 				expDate, err = time.Parse("2-Jan-2006", expirationStr)
 				if err != nil {
 					log.Debugf("Failed to parse expiration: %v", err)
-					expDate = time.Now().AddDate(100, 0, 0)
+					expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
 				}
 			}
 

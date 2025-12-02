@@ -220,14 +220,15 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 			var expDate time.Time
 			if strings.ToLower(expirationStr) == "permanent" {
-				// Set permanent licenses to far future date
-				expDate = time.Now().AddDate(100, 0, 0)
+				// Set permanent licenses to fixed far future date (prevents duplicate records)
+				expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
 			} else {
 				var err error
 				expDate, err = time.Parse("2-Jan-2006", expirationStr)
 				if err != nil {
 					log.Debugf("Failed to parse expiration date '%s': %v", expirationStr, err)
-					expDate = time.Now().AddDate(100, 0, 0) // Far future for unparseable dates
+					// Use fixed far future date for unparseable dates (prevents duplicate records)
+				expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
 				}
 			}
 
