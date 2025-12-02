@@ -72,10 +72,10 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 
 	// List of known utility/command names that should not be treated as features
 	excludedNames := map[string]bool{
-		"rlm":      true,
-		"rlmutil":  true,
-		"rlmstat":  true,
-		"rlmdown":  true,
+		"rlm":       true,
+		"rlmutil":   true,
+		"rlmstat":   true,
+		"rlmdown":   true,
 		"rlmreread": true,
 	}
 

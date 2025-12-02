@@ -228,7 +228,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 				if err != nil {
 					log.Debugf("Failed to parse expiration date '%s': %v", expirationStr, err)
 					// Use fixed far future date for unparseable dates (prevents duplicate records)
-				expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+					expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
 				}
 			}
 
