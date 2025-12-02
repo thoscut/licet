@@ -148,10 +148,44 @@ func (h *WebHandler) Expiration(w http.ResponseWriter, r *http.Request) {
 
 func (h *WebHandler) Utilization(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{
-		"Title": "License Utilization",
+		"Title": "License Utilization Overview",
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "utilization.html", data); err != nil {
+	if err := h.templates.ExecuteTemplate(w, "utilization_overview.html", data); err != nil {
+		log.Errorf("Template error: %v", err)
+		http.Error(w, "Template error", http.StatusInternalServerError)
+	}
+}
+
+func (h *WebHandler) UtilizationTrends(w http.ResponseWriter, r *http.Request) {
+	data := map[string]interface{}{
+		"Title": "Usage Trends",
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "utilization_trends.html", data); err != nil {
+		log.Errorf("Template error: %v", err)
+		http.Error(w, "Template error", http.StatusInternalServerError)
+	}
+}
+
+func (h *WebHandler) UtilizationAnalytics(w http.ResponseWriter, r *http.Request) {
+	data := map[string]interface{}{
+		"Title": "Predictive Analytics",
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "utilization_analytics.html", data); err != nil {
+		log.Errorf("Template error: %v", err)
+		http.Error(w, "Template error", http.StatusInternalServerError)
+	}
+}
+
+func (h *WebHandler) UtilizationStats(w http.ResponseWriter, r *http.Request) {
+	data := map[string]interface{}{
+		"Title": "Detailed Statistics",
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "utilization_stats.html", data); err != nil {
+		log.Errorf("Template error: %v", err)
 		http.Error(w, "Template error", http.StatusInternalServerError)
 	}
 }

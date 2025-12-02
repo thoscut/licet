@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - Licet</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-top: 60px; }
+        .status-up { background-color: #d4edda; }
+        .status-down { background-color: #f8d7da; }
+        .status-warning { background-color: #fff3cd; }
+
+        .utilization-card {
+            margin-bottom: 1rem;
+            transition: transform 0.2s;
+        }
+        .utilization-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .utilization-low { border-left: 4px solid #28a745; }
+        .utilization-medium { border-left: 4px solid #ffc107; }
+        .utilization-high { border-left: 4px solid #dc3545; }
+
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .detail-link-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+            transition: transform 0.2s;
+        }
+
+        .detail-link-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .detail-link-card h5 {
+            color: white;
+            margin-bottom: 0.5rem;
+        }
+
+        .detail-link-card p {
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 1rem;
+        }
+
+        .detail-link-card .btn {
+            background-color: rgba(255,255,255,0.2);
+            border: 1px solid white;
+            color: white;
+        }
+
+        .detail-link-card .btn:hover {
+            background-color: white;
+            color: #667eea;
+        }
+
+        .quick-stats {
+            background-color: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .stat-box h3 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-box p {
+            color: #6c757d;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">Licet (Go)</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item active">
+                        <a class="nav-link" href="/utilization">Utilization</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">Alerts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/statistics">Statistics</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/api/v1/health">API</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">Settings</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>License Utilization Overview</h1>
+        <p>Real-time snapshot of license usage across all servers</p>
+
+        <!-- Filters Section -->
+        <div class="filter-section">
+            <div class="row align-items-end">
+                <div class="col-md-4">
+                    <label for="serverFilter" class="form-label">Filter by Server</label>
+                    <select id="serverFilter" class="form-select">
+                        <option value="">All Servers</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="sortBy" class="form-label">Sort By</label>
+                    <select id="sortBy" class="form-select">
+                        <option value="utilization">Utilization %</option>
+                        <option value="feature">Feature Name</option>
+                        <option value="server">Server</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button id="refreshBtn" class="btn btn-primary w-100">
+                        <span id="refreshIcon">🔄</span> Refresh
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    <button id="exportBtn" class="btn btn-outline-primary w-100">
+                        📊 Export to CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats Summary -->
+        <div class="quick-stats">
+            <div class="row">
+                <div class="col-md-3 stat-box">
+                    <h3 id="totalFeatures">-</h3>
+                    <p>Total Features</p>
+                </div>
+                <div class="col-md-3 stat-box">
+                    <h3 id="avgUtilization">-</h3>
+                    <p>Avg Utilization</p>
+                </div>
+                <div class="col-md-3 stat-box">
+                    <h3 id="highUtilization">-</h3>
+                    <p>High Usage (>90%)</p>
+                </div>
+                <div class="col-md-3 stat-box">
+                    <h3 id="totalLicenses">-</h3>
+                    <p>Total Licenses</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail Page Links -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="detail-link-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h5>📈 Usage Trends</h5>
+                    <p>View historical usage patterns and trends over time</p>
+                    <a href="/utilization/trends" class="btn">View Trends →</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-link-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <h5>🔮 Predictive Analytics</h5>
+                    <p>Forecasting, anomaly detection, and capacity planning</p>
+                    <a href="/utilization/analytics" class="btn">View Analytics →</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-link-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <h5>📊 Detailed Statistics</h5>
+                    <p>Comprehensive statistics table with averages and peaks</p>
+                    <a href="/utilization/stats" class="btn">View Statistics →</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Loading utilization data...</p>
+        </div>
+
+        <!-- Current Utilization Section -->
+        <div id="currentUtilizationSection">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="mb-0">Current License Utilization</h2>
+                <small class="text-muted">Last updated: <span id="lastUpdated">-</span></small>
+            </div>
+            <div id="currentUtilization" class="row">
+                <!-- Utilization cards will be inserted here -->
+            </div>
+        </div>
+
+        <hr>
+        <footer>
+            <p class="text-muted">
+                Licet (Go Edition) |
+                <a href="https://github.com/thoscut/licet">GitHub</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="/static/js/bootstrap.min.js"></script>
+    <script>
+        let currentUtilizationData = [];
+        let allServers = new Set();
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServers();
+            loadData();
+
+            // Event listeners
+            document.getElementById('serverFilter').addEventListener('change', loadData);
+            document.getElementById('sortBy').addEventListener('change', renderUtilization);
+            document.getElementById('refreshBtn').addEventListener('click', loadData);
+            document.getElementById('exportBtn').addEventListener('click', exportToCSV);
+
+            // Auto-refresh every 5 minutes
+            setInterval(loadData, 5 * 60 * 1000);
+        });
+
+        // Load available servers
+        async function loadServers() {
+            try {
+                const response = await fetch('/api/v1/servers');
+                const data = await response.json();
+
+                const serverSelect = document.getElementById('serverFilter');
+                data.servers.forEach(server => {
+                    const option = document.createElement('option');
+                    option.value = server.hostname;
+                    option.textContent = `${server.hostname} (${server.description})`;
+                    serverSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading servers:', error);
+            }
+        }
+
+        // Load current utilization data
+        async function loadData() {
+            showLoading(true);
+            try {
+                const serverFilter = document.getElementById('serverFilter').value;
+                const url = `/api/v1/utilization/current${serverFilter ? '?server=' + encodeURIComponent(serverFilter) : ''}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+                currentUtilizationData = data.utilization || [];
+
+                renderUtilization();
+                updateQuickStats();
+                updateTimestamp();
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('currentUtilization').innerHTML =
+                    '<div class="col-12"><div class="alert alert-danger">Failed to load utilization data. Please try again.</div></div>';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Render utilization cards (OPTIMIZED: Build HTML string first, then set once)
+        function renderUtilization() {
+            const container = document.getElementById('currentUtilization');
+
+            if (currentUtilizationData.length === 0) {
+                container.innerHTML = '<div class="col-12"><div class="alert alert-info">No utilization data available. Data will appear once license servers are queried.</div></div>';
+                return;
+            }
+
+            // Sort data
+            const sortBy = document.getElementById('sortBy').value;
+            const sortedData = [...currentUtilizationData].sort((a, b) => {
+                switch(sortBy) {
+                    case 'utilization':
+                        return b.utilization_pct - a.utilization_pct;
+                    case 'feature':
+                        return a.feature_name.localeCompare(b.feature_name);
+                    case 'server':
+                        return a.server_hostname.localeCompare(b.server_hostname);
+                    default:
+                        return 0;
+                }
+            });
+
+            // Build HTML string first (PERFORMANCE FIX)
+            const cards = sortedData.map(item => {
+                allServers.add(item.server_hostname);
+
+                const utilizationClass = item.utilization_pct >= 90 ? 'utilization-high' :
+                                       item.utilization_pct >= 70 ? 'utilization-medium' : 'utilization-low';
+
+                const progressBarClass = item.utilization_pct >= 90 ? 'bg-danger' :
+                                        item.utilization_pct >= 70 ? 'bg-warning' : 'bg-success';
+
+                return `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card utilization-card ${utilizationClass}">
+                            <div class="card-body">
+                                <h6 class="card-title text-truncate" title="${item.feature_name}">
+                                    ${item.feature_name}
+                                </h6>
+                                <p class="card-text small text-muted mb-2">
+                                    ${item.server_hostname}
+                                    ${item.vendor_daemon ? `<br><span class="badge bg-secondary">${item.vendor_daemon}</span>` : ''}
+                                </p>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Usage</span>
+                                    <strong>${item.used_licenses} / ${item.total_licenses}</strong>
+                                </div>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar ${progressBarClass}"
+                                         role="progressbar"
+                                         style="width: ${item.utilization_pct}%"
+                                         aria-valuenow="${item.utilization_pct}"
+                                         aria-valuemin="0"
+                                         aria-valuemax="100">
+                                        ${item.utilization_pct.toFixed(1)}%
+                                    </div>
+                                </div>
+                                <small class="text-muted mt-2 d-block">
+                                    ${item.available_licenses} available
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Set innerHTML once (PERFORMANCE FIX)
+            container.innerHTML = cards;
+        }
+
+        // Update quick stats
+        function updateQuickStats() {
+            const total = currentUtilizationData.length;
+            const avgUtil = total > 0
+                ? (currentUtilizationData.reduce((sum, item) => sum + item.utilization_pct, 0) / total).toFixed(1)
+                : 0;
+            const highUtil = currentUtilizationData.filter(item => item.utilization_pct >= 90).length;
+            const totalLics = currentUtilizationData.reduce((sum, item) => sum + item.total_licenses, 0);
+
+            document.getElementById('totalFeatures').textContent = total;
+            document.getElementById('avgUtilization').textContent = `${avgUtil}%`;
+            document.getElementById('highUtilization').textContent = highUtil;
+            document.getElementById('totalLicenses').textContent = totalLics;
+        }
+
+        // Update timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            document.getElementById('lastUpdated').textContent = now.toLocaleTimeString();
+        }
+
+        // Show/hide loading indicator
+        function showLoading(show) {
+            const indicator = document.getElementById('loadingIndicator');
+            if (show) {
+                indicator.classList.add('active');
+            } else {
+                indicator.classList.remove('active');
+            }
+        }
+
+        // Export to CSV
+        function exportToCSV() {
+            if (currentUtilizationData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            const csv = [
+                ['Server', 'Feature', 'Vendor Daemon', 'Total Licenses', 'Used Licenses', 'Available', 'Utilization %'],
+                ...currentUtilizationData.map(item => [
+                    item.server_hostname,
+                    item.feature_name,
+                    item.vendor_daemon || '',
+                    item.total_licenses,
+                    item.used_licenses,
+                    item.available_licenses,
+                    item.utilization_pct.toFixed(2)
+                ])
+            ].map(row => row.join(',')).join('\n');
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `license-utilization-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictive Analytics - Licet</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-top: 60px; }
+
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 2rem;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .info-card {
+            background-color: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-box {
+            text-align: center;
+            padding: 1rem;
+            border-right: 1px solid #dee2e6;
+        }
+
+        .metric-box:last-child {
+            border-right: none;
+        }
+
+        .metric-box h4 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-box p {
+            color: #6c757d;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">Licet (Go)</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item active">
+                        <a class="nav-link" href="/utilization">Utilization</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">Alerts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/statistics">Statistics</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/api/v1/health">API</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">Settings</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1>Predictive Analytics & Forecasting</h1>
+                <p class="text-muted">Trend forecasts, anomaly detection, and capacity planning</p>
+            </div>
+            <a href="/utilization" class="btn btn-outline-secondary">← Back to Overview</a>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="filter-section">
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="serverFilter" class="form-label">Filter by Server</label>
+                    <select id="serverFilter" class="form-select">
+                        <option value="">All Servers</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="periodFilter" class="form-label">Analysis Period</label>
+                    <select id="periodFilter" class="form-select">
+                        <option value="30d" selected>Last 30 Days</option>
+                        <option value="90d">Last 90 Days</option>
+                        <option value="1y">Last Year</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Selection -->
+        <div class="mb-4">
+            <label for="predictionFeatureSelect" class="form-label"><strong>Select Feature for Analysis:</strong></label>
+            <select id="predictionFeatureSelect" class="form-select">
+                <option value="">Select a feature...</option>
+            </select>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Analyzing trends and generating forecasts...</p>
+        </div>
+
+        <!-- Results Section -->
+        <div id="predictionResults" style="display: none;">
+            <!-- Capacity Warning -->
+            <div id="capacityWarning" class="alert alert-warning" style="display: none;">
+                <strong>⚠️ Capacity Warning:</strong> <span id="capacityMessage"></span>
+            </div>
+
+            <!-- Key Metrics -->
+            <div class="info-card">
+                <div class="row">
+                    <div class="col-md-3 metric-box">
+                        <h4 id="totalLicensesMetric">-</h4>
+                        <p>Total Licenses</p>
+                    </div>
+                    <div class="col-md-3 metric-box">
+                        <h4 id="currentUsageMetric">-</h4>
+                        <p>Avg Current Usage</p>
+                    </div>
+                    <div class="col-md-3 metric-box">
+                        <h4 id="trendMetric">-</h4>
+                        <p>Trend Direction</p>
+                    </div>
+                    <div class="col-md-3 metric-box">
+                        <h4 id="confidenceMetric">-</h4>
+                        <p>Confidence Level</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Forecast Chart -->
+            <div class="mb-4">
+                <h4>Usage Forecast (Next 30 Days)</h4>
+                <p class="text-muted">
+                    Projected license usage based on historical trends
+                </p>
+                <div class="chart-container" style="height: 350px;">
+                    <canvas id="forecastChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Anomalies Section -->
+            <div id="anomaliesSection" style="display: none;">
+                <h4>Detected Anomalies</h4>
+                <p class="text-muted">Usage spikes or drops that deviate significantly from the norm</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Actual Usage</th>
+                                <th>Expected</th>
+                                <th>Deviation</th>
+                                <th>Severity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="anomaliesTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- No Anomalies Message -->
+            <div id="noAnomaliesMessage" class="alert alert-success" style="display: none;">
+                <strong>✓ No anomalies detected</strong> - Usage patterns are within expected ranges
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-5">
+            <h4 class="text-muted">Select a feature to view predictive analytics</h4>
+            <p class="text-muted">Requires at least 7 days of historical data</p>
+        </div>
+
+        <hr>
+        <footer>
+            <p class="text-muted">
+                Licet (Go Edition) |
+                <a href="https://github.com/thoscut/licet">GitHub</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="/static/js/bootstrap.min.js"></script>
+    <script src="/static/js/chart.min.js"></script>
+    <script src="/static/js/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script>
+        let forecastChart = null;
+        let predictionsData = null;
+        let currentUtilizationData = [];
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServers();
+            loadCurrentUtilization();
+
+            // Event listeners
+            document.getElementById('serverFilter').addEventListener('change', loadCurrentUtilization);
+            document.getElementById('periodFilter').addEventListener('change', function() {
+                const selected = document.getElementById('predictionFeatureSelect').value;
+                if (selected) {
+                    loadPredictions();
+                }
+            });
+            document.getElementById('predictionFeatureSelect').addEventListener('change', loadPredictions);
+        });
+
+        // Load available servers
+        async function loadServers() {
+            try {
+                const response = await fetch('/api/v1/servers');
+                const data = await response.json();
+
+                const serverSelect = document.getElementById('serverFilter');
+                data.servers.forEach(server => {
+                    const option = document.createElement('option');
+                    option.value = server.hostname;
+                    option.textContent = `${server.hostname} (${server.description})`;
+                    serverSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading servers:', error);
+            }
+        }
+
+        // Load current utilization to populate feature selector
+        async function loadCurrentUtilization() {
+            try {
+                const serverFilter = document.getElementById('serverFilter').value;
+                const url = `/api/v1/utilization/current${serverFilter ? '?server=' + encodeURIComponent(serverFilter) : ''}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+                currentUtilizationData = data.utilization || [];
+
+                populateFeatureSelector();
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        // Populate feature selector
+        function populateFeatureSelector() {
+            const select = document.getElementById('predictionFeatureSelect');
+            select.innerHTML = '<option value="">Select a feature...</option>';
+
+            currentUtilizationData.forEach(item => {
+                const option = document.createElement('option');
+                const key = `${item.server_hostname}:${item.feature_name}`;
+                option.value = key;
+                option.textContent = `${item.feature_name} (${item.server_hostname})`;
+                select.appendChild(option);
+            });
+        }
+
+        // Load predictions for selected feature
+        async function loadPredictions() {
+            const value = document.getElementById('predictionFeatureSelect').value;
+
+            if (!value) {
+                document.getElementById('predictionResults').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('emptyState').style.display = 'none';
+
+            const [server, feature] = value.split(':');
+            const period = document.getElementById('periodFilter').value;
+
+            let days = 30;
+            switch(period) {
+                case '30d': days = 30; break;
+                case '90d': days = 90; break;
+                case '1y': days = 365; break;
+            }
+
+            showLoading(true);
+
+            try {
+                const url = `/api/v1/utilization/predictions?server=${encodeURIComponent(server)}&feature=${encodeURIComponent(feature)}&days=${days}`;
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error('Failed to load predictions');
+                }
+
+                predictionsData = await response.json();
+                displayPredictions();
+            } catch (error) {
+                console.error('Error loading predictions:', error);
+                alert('Unable to load predictions. Ensure sufficient historical data exists (minimum 7 days).');
+                document.getElementById('predictionResults').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Display predictions
+        function displayPredictions() {
+            if (!predictionsData) return;
+
+            document.getElementById('predictionResults').style.display = 'block';
+
+            // Update key metrics
+            document.getElementById('totalLicensesMetric').textContent = predictionsData.total_licenses;
+            document.getElementById('currentUsageMetric').textContent = predictionsData.current_usage.toFixed(1);
+
+            const trendDirection = predictionsData.trend_slope > 0.1 ? '📈 Up' :
+                                 predictionsData.trend_slope < -0.1 ? '📉 Down' : '➡️ Stable';
+            document.getElementById('trendMetric').textContent = trendDirection;
+            document.getElementById('confidenceMetric').textContent = `${(predictionsData.confidence_level * 100).toFixed(1)}%`;
+
+            // Display capacity warning
+            if (predictionsData.days_to_capacity > 0 && predictionsData.days_to_capacity < 90) {
+                const warning = document.getElementById('capacityWarning');
+                const message = document.getElementById('capacityMessage');
+                message.textContent = `This feature is projected to reach capacity in approximately ${predictionsData.days_to_capacity} days based on current trends.`;
+                warning.style.display = 'block';
+            } else {
+                document.getElementById('capacityWarning').style.display = 'none';
+            }
+
+            // Display forecast chart
+            displayForecastChart();
+
+            // Display anomalies (OPTIMIZED: build string first)
+            if (predictionsData.anomalies && predictionsData.anomalies.length > 0) {
+                document.getElementById('anomaliesSection').style.display = 'block';
+                document.getElementById('noAnomaliesMessage').style.display = 'none';
+
+                const tbody = document.getElementById('anomaliesTableBody');
+                const rows = predictionsData.anomalies.map(anomaly => {
+                    const severityClass = anomaly.severity === 'high' ? 'danger' :
+                                        anomaly.severity === 'medium' ? 'warning' : 'info';
+                    return `
+                        <tr>
+                            <td>${anomaly.date}</td>
+                            <td>${anomaly.usage}</td>
+                            <td>${anomaly.expected.toFixed(1)}</td>
+                            <td>${anomaly.deviation.toFixed(2)}σ</td>
+                            <td><span class="badge bg-${severityClass}">${anomaly.severity}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+
+                tbody.innerHTML = rows;
+            } else {
+                document.getElementById('anomaliesSection').style.display = 'none';
+                document.getElementById('noAnomaliesMessage').style.display = 'block';
+            }
+        }
+
+        // Display forecast chart
+        function displayForecastChart() {
+            if (!predictionsData || !predictionsData.forecast) return;
+
+            const ctx = document.getElementById('forecastChart').getContext('2d');
+
+            if (forecastChart) {
+                forecastChart.destroy();
+            }
+
+            const labels = predictionsData.forecast.map(f => f.date);
+            const predictions = predictionsData.forecast.map(f => f.predicted_usage);
+
+            // Add capacity line
+            const capacityLine = new Array(labels.length).fill(predictionsData.total_licenses);
+
+            forecastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Predicted Usage',
+                            data: predictions,
+                            borderColor: '#36A2EB',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'License Capacity',
+                            data: capacityLine,
+                            borderColor: '#FF6384',
+                            borderDash: [5, 5],
+                            borderWidth: 2,
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(1) + ' licenses';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Licenses in Use'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Show/hide loading indicator
+        function showLoading(show) {
+            const indicator = document.getElementById('loadingIndicator');
+            if (show) {
+                indicator.classList.add('active');
+            } else {
+                indicator.classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>

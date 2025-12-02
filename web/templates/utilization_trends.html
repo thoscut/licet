@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usage Trends - Licet</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-top: 60px; }
+
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 2rem;
+        }
+
+        .feature-checkbox {
+            margin-right: 1rem;
+            display: inline-block;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .tab-content {
+            padding-top: 1.5rem;
+        }
+
+        .feature-selector-container {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">Licet (Go)</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item active">
+                        <a class="nav-link" href="/utilization">Utilization</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">Alerts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/statistics">Statistics</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/api/v1/health">API</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">Settings</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1>Usage Trends</h1>
+                <p class="text-muted">Historical license usage patterns and peak demand analysis</p>
+            </div>
+            <a href="/utilization" class="btn btn-outline-secondary">← Back to Overview</a>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="filter-section">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="serverFilter" class="form-label">Filter by Server</label>
+                    <select id="serverFilter" class="form-select">
+                        <option value="">All Servers</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="periodFilter" class="form-label">Time Period</label>
+                    <select id="periodFilter" class="form-select">
+                        <option value="7d" selected>Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                        <option value="90d">Last 90 Days</option>
+                        <option value="1y">Last Year</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <button id="refreshBtn" class="btn btn-primary w-100">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Loading trend data...</p>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" id="trendTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline" type="button" role="tab">
+                    Timeline Chart
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="heatmap-tab" data-bs-toggle="tab" data-bs-target="#heatmap" type="button" role="tab">
+                    Peak Usage Heatmap
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="trendTabContent">
+            <!-- Timeline Chart Tab -->
+            <div class="tab-pane fade show active" id="timeline" role="tabpanel">
+                <h4>Historical Usage Timeline</h4>
+                <p class="text-muted">Compare usage trends across multiple features</p>
+
+                <div class="mb-3">
+                    <label class="form-label"><strong>Select Features to Compare (up to 10):</strong></label>
+                    <div id="featureSelector" class="feature-selector-container">
+                        <p class="text-muted">Loading features...</p>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Heatmap Tab -->
+            <div class="tab-pane fade" id="heatmap" role="tabpanel">
+                <h4>Peak Usage Patterns (Hour of Day)</h4>
+                <p class="text-muted">Shows average license usage by hour to identify peak demand times</p>
+
+                <div class="mb-3">
+                    <label for="heatmapFeatureSelect" class="form-label">Select Feature:</label>
+                    <select id="heatmapFeatureSelect" class="form-select" style="max-width: 400px;">
+                        <option value="">Select a feature...</option>
+                    </select>
+                </div>
+
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="heatmapChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <hr>
+        <footer>
+            <p class="text-muted">
+                Licet (Go Edition) |
+                <a href="https://github.com/thoscut/licet">GitHub</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="/static/js/bootstrap.min.js"></script>
+    <script src="/static/js/chart.min.js"></script>
+    <script src="/static/js/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="/static/js/chartjs-chart-matrix.min.js"></script>
+    <script>
+        let timelineChart = null;
+        let heatmapChart = null;
+        let currentUtilizationData = [];
+        let heatmapData = [];
+        let selectedFeatures = new Set();
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServers();
+            loadCurrentUtilization();
+
+            // Event listeners
+            document.getElementById('serverFilter').addEventListener('change', function() {
+                loadCurrentUtilization();
+            });
+            document.getElementById('periodFilter').addEventListener('change', function() {
+                loadHistoricalChart();
+            });
+            document.getElementById('refreshBtn').addEventListener('click', function() {
+                loadCurrentUtilization();
+                if (document.getElementById('heatmap-tab').classList.contains('active')) {
+                    loadHeatmap();
+                }
+            });
+
+            // Tab change listeners
+            document.getElementById('heatmap-tab').addEventListener('shown.bs.tab', function() {
+                if (heatmapData.length === 0) {
+                    loadHeatmap();
+                }
+            });
+
+            document.getElementById('heatmapFeatureSelect').addEventListener('change', loadHeatmapForFeature);
+        });
+
+        // Load available servers
+        async function loadServers() {
+            try {
+                const response = await fetch('/api/v1/servers');
+                const data = await response.json();
+
+                const serverSelect = document.getElementById('serverFilter');
+                data.servers.forEach(server => {
+                    const option = document.createElement('option');
+                    option.value = server.hostname;
+                    option.textContent = `${server.hostname} (${server.description})`;
+                    serverSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading servers:', error);
+            }
+        }
+
+        // Load current utilization to populate feature selector
+        async function loadCurrentUtilization() {
+            showLoading(true);
+            try {
+                const serverFilter = document.getElementById('serverFilter').value;
+                const url = `/api/v1/utilization/current${serverFilter ? '?server=' + encodeURIComponent(serverFilter) : ''}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+                currentUtilizationData = data.utilization || [];
+
+                populateFeatureSelector();
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('featureSelector').innerHTML =
+                    '<div class="alert alert-danger">Failed to load features. Please try again.</div>';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Populate feature selector checkboxes (OPTIMIZED)
+        function populateFeatureSelector() {
+            const container = document.getElementById('featureSelector');
+
+            if (currentUtilizationData.length === 0) {
+                container.innerHTML = '<p class="text-muted">No features available</p>';
+                return;
+            }
+
+            // Auto-select first 3 features if none selected
+            if (selectedFeatures.size === 0) {
+                currentUtilizationData.slice(0, 3).forEach(item => {
+                    selectedFeatures.add(`${item.server_hostname}:${item.feature_name}`);
+                });
+            }
+
+            // Build checkboxes HTML (PERFORMANCE FIX: build string first)
+            const checkboxes = currentUtilizationData.map(item => {
+                const key = `${item.server_hostname}:${item.feature_name}`;
+                const checked = selectedFeatures.has(key) ? 'checked' : '';
+                const id = `feature-${key.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+                return `
+                    <div class="form-check feature-checkbox">
+                        <input class="form-check-input feature-toggle" type="checkbox"
+                               value="${key}" id="${id}"
+                               ${checked}
+                               data-server="${item.server_hostname}"
+                               data-feature="${item.feature_name}">
+                        <label class="form-check-label" for="${id}">
+                            ${item.feature_name} <small class="text-muted">(${item.server_hostname})</small>
+                        </label>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = checkboxes;
+
+            // Add event listeners
+            document.querySelectorAll('.feature-toggle').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    // Limit to 10 features
+                    if (this.checked && selectedFeatures.size >= 10) {
+                        this.checked = false;
+                        alert('Maximum 10 features can be compared at once');
+                        return;
+                    }
+
+                    if (this.checked) {
+                        selectedFeatures.add(this.value);
+                    } else {
+                        selectedFeatures.delete(this.value);
+                    }
+                    loadHistoricalChart();
+                });
+            });
+
+            // Load chart with selected features
+            loadHistoricalChart();
+        }
+
+        // Load historical chart
+        async function loadHistoricalChart() {
+            const period = document.getElementById('periodFilter').value;
+
+            if (selectedFeatures.size === 0) {
+                if (timelineChart) {
+                    timelineChart.destroy();
+                    timelineChart = null;
+                }
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                // Load data for each selected feature in parallel
+                const dataPromises = Array.from(selectedFeatures).map(async key => {
+                    const [server, feature] = key.split(':');
+                    const url = `/api/v1/utilization/history?server=${encodeURIComponent(server)}&feature=${encodeURIComponent(feature)}&period=${period}`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    return { key, server, feature, history: data.history || [] };
+                });
+
+                const results = await Promise.all(dataPromises);
+
+                // Build datasets
+                const colors = [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                    '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+                ];
+
+                const datasets = results
+                    .filter(result => result.history.length > 0)
+                    .map((result, index) => ({
+                        label: `${result.feature} (${result.server})`,
+                        data: result.history.map(point => ({
+                            x: point.timestamp,
+                            y: point.users_count
+                        })),
+                        borderColor: colors[index % colors.length],
+                        backgroundColor: colors[index % colors.length] + '33',
+                        tension: 0.4,
+                        fill: false
+                    }));
+
+                // Create or update chart
+                const ctx = document.getElementById('timelineChart').getContext('2d');
+
+                if (timelineChart) {
+                    timelineChart.destroy();
+                }
+
+                timelineChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': ' + context.parsed.y + ' licenses';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    unit: period === '7d' ? 'hour' : period === '30d' ? 'day' : 'week'
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Time'
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Licenses in Use'
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading historical data:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Load heatmap data
+        async function loadHeatmap() {
+            showLoading(true);
+            try {
+                const serverFilter = document.getElementById('serverFilter').value;
+                const period = document.getElementById('periodFilter').value;
+
+                let days = 7;
+                switch(period) {
+                    case '7d': days = 7; break;
+                    case '30d': days = 7; break;
+                    case '90d': days = 14; break;
+                    case '1y': days = 30; break;
+                }
+
+                const url = `/api/v1/utilization/heatmap?days=${days}${serverFilter ? '&server=' + encodeURIComponent(serverFilter) : ''}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+                heatmapData = data.heatmap || [];
+
+                // Update feature selector
+                const select = document.getElementById('heatmapFeatureSelect');
+                select.innerHTML = '<option value="">Select a feature...</option>';
+
+                heatmapData.forEach((item, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = `${item.feature_name} (${item.server_hostname})`;
+                    select.appendChild(option);
+                });
+
+                // Auto-select first feature
+                if (heatmapData.length > 0) {
+                    select.value = '0';
+                    loadHeatmapForFeature();
+                }
+            } catch (error) {
+                console.error('Error loading heatmap:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Load heatmap for selected feature
+        function loadHeatmapForFeature() {
+            const select = document.getElementById('heatmapFeatureSelect');
+            const index = parseInt(select.value);
+
+            if (isNaN(index) || !heatmapData[index]) {
+                if (heatmapChart) {
+                    heatmapChart.destroy();
+                    heatmapChart = null;
+                }
+                return;
+            }
+
+            const feature = heatmapData[index];
+            const ctx = document.getElementById('heatmapChart').getContext('2d');
+
+            // Prepare data for bar chart (simpler than matrix for hourly data)
+            const labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+            const avgData = feature.hourly_data.map(h => h.avg_usage);
+            const peakData = feature.hourly_data.map(h => h.peak_usage);
+
+            if (heatmapChart) {
+                heatmapChart.destroy();
+            }
+
+            heatmapChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Average Usage',
+                            data: avgData,
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Peak Usage',
+                            data: peakData,
+                            backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Hourly Usage Pattern: ${feature.feature_name}`
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Hour of Day'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Licenses in Use'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Show/hide loading indicator
+        function showLoading(show) {
+            const indicator = document.getElementById('loadingIndicator');
+            if (show) {
+                indicator.classList.add('active');
+            } else {
+                indicator.classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>
