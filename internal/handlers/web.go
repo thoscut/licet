@@ -201,7 +201,8 @@ func (h *WebHandler) Denials(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebHandler) Alerts(w http.ResponseWriter, r *http.Request) {
-	alerts, err := h.alertService.GetUnsentAlerts()
+	// Get all active alerts from the last 30 days (both sent and unsent)
+	alerts, err := h.alertService.GetActiveAlerts()
 	if err != nil {
 		http.Error(w, "Failed to get alerts", http.StatusInternalServerError)
 		return
