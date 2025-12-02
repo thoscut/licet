@@ -10,6 +10,48 @@
         .status-up { background-color: #d4edda; }
         .status-down { background-color: #f8d7da; }
         .status-warning { background-color: #fff3cd; }
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 20px;
+        }
+        th.sortable:hover {
+            background-color: #e9ecef;
+        }
+        th.sortable::after {
+            content: '⇅';
+            position: absolute;
+            right: 5px;
+            opacity: 0.3;
+        }
+        th.sortable.asc::after {
+            content: '↑';
+            opacity: 1;
+        }
+        th.sortable.desc::after {
+            content: '↓';
+            opacity: 1;
+        }
+        .checkout-row {
+            display: none;
+            background-color: #f8f9fa;
+        }
+        .checkout-row.show {
+            display: table-row;
+        }
+        .expandable-row {
+            cursor: pointer;
+        }
+        .expand-icon {
+            display: inline-block;
+            width: 16px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .expand-icon.expanded {
+            transform: rotate(90deg);
+        }
     </style>
 </head>
 <body>
@@ -51,80 +93,83 @@
         {{if .Features}}
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="mb-0">License Features</h2>
-            <div class="btn-toolbar" role="toolbar">
-                <div class="btn-group me-2" role="group">
-                    <button type="button" class="btn btn-sm btn-outline-primary active" id="showCheckedOutOnly">
-                        Checked Out Only
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="showAll">
-                        Show All
-                    </button>
-                </div>
-                <div class="btn-group" role="group">
-                    {{if eq .SortBy "alpha"}}
-                        <a href="?sort=" class="btn btn-sm btn-outline-secondary">Default Order</a>
-                        <a href="?sort=alpha" class="btn btn-sm btn-primary active">Alphabetical</a>
-                    {{else}}
-                        <a href="?sort=" class="btn btn-sm btn-primary active">Default Order</a>
-                        <a href="?sort=alpha" class="btn btn-sm btn-outline-secondary">Alphabetical</a>
-                    {{end}}
-                </div>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm btn-outline-primary active" id="showCheckedOutOnly">
+                    Checked Out Only
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="showAll">
+                    Show All
+                </button>
             </div>
         </div>
-        {{range .Features}}
-        {{$featureName := .Name}}
-        {{$hasCheckouts := false}}
-        {{range $.Users}}
-            {{if eq .FeatureName $featureName}}
-                {{$hasCheckouts = true}}
-            {{end}}
-        {{end}}
-        <div class="card mb-2 feature-card" data-has-checkouts="{{$hasCheckouts}}">
-            <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                <div>
-                    <strong>{{.Name}}</strong>
-                    {{if .Version}}<span class="badge bg-secondary ms-2">v{{.Version}}</span>{{end}}
-                    <span class="ms-3 text-muted">Total:</span> <span class="fw-bold">{{.TotalLicenses}}</span>
-                    <span class="ms-2 text-muted">Used:</span> <span class="fw-bold">{{.UsedLicenses}}</span>
-                    <span class="ms-2 text-muted">Available:</span> <span class="fw-bold">{{.AvailableLicenses}}</span>
-                </div>
-            </div>
-            <div class="card-body p-2">
-
-                {{if $.Users}}
-                    {{$hasCheckoutsInner := false}}
-                    {{range $.Users}}
-                        {{if eq .FeatureName $featureName}}
-                            {{if not $hasCheckoutsInner}}
-                                <h6 class="mt-2 mb-1">Current Checkouts:</h6>
-                                <table class="table table-sm table-bordered mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th class="py-1">User</th>
-                                            <th class="py-1">Host</th>
-                                            <th class="py-1">Checked Out At</th>
-                                            <th class="py-1">Duration</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                {{$hasCheckoutsInner = true}}
-                            {{end}}
-                                        <tr>
-                                            <td class="py-1">{{.Username}}</td>
-                                            <td class="py-1">{{.Host}}</td>
-                                            <td class="py-1">{{.CheckedOutAt.Format "2006-01-02 15:04:05"}}</td>
-                                            <td class="py-1">{{timeSince .CheckedOutAt}}</td>
-                                        </tr>
-                        {{end}}
-                    {{end}}
-                    {{if $hasCheckoutsInner}}
-                                    </tbody>
-                                </table>
+        <table class="table table-striped" id="featuresTable">
+            <thead>
+                <tr>
+                    <th style="width: 30px;"></th>
+                    <th class="sortable" data-column="1" data-type="string">Feature</th>
+                    <th class="sortable" data-column="2" data-type="string">Version</th>
+                    <th class="sortable" data-column="3" data-type="number">Total</th>
+                    <th class="sortable" data-column="4" data-type="number">Used</th>
+                    <th class="sortable" data-column="5" data-type="number">Available</th>
+                    <th class="sortable" data-column="6" data-type="number">Checkouts</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range $idx, $feature := .Features}}
+                {{$featureName := $feature.Name}}
+                {{$checkoutCount := 0}}
+                {{range $.Users}}
+                    {{if eq .FeatureName $featureName}}
+                        {{$checkoutCount = add $checkoutCount 1}}
                     {{end}}
                 {{end}}
-            </div>
-        </div>
-        {{end}}
+                <tr class="feature-row expandable-row" data-has-checkouts="{{gt $checkoutCount 0}}" data-feature-index="{{$idx}}">
+                    <td>
+                        {{if gt $checkoutCount 0}}
+                        <span class="expand-icon">▶</span>
+                        {{end}}
+                    </td>
+                    <td><strong>{{$feature.Name}}</strong></td>
+                    <td>{{if $feature.Version}}{{$feature.Version}}{{else}}-{{end}}</td>
+                    <td>{{$feature.TotalLicenses}}</td>
+                    <td>{{$feature.UsedLicenses}}</td>
+                    <td>{{$feature.AvailableLicenses}}</td>
+                    <td>{{$checkoutCount}}</td>
+                </tr>
+                {{if gt $checkoutCount 0}}
+                <tr class="checkout-row" data-feature-index="{{$idx}}">
+                    <td colspan="7">
+                        <div class="p-3">
+                            <h6 class="mb-2">Current Checkouts:</h6>
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Host</th>
+                                        <th>Checked Out At</th>
+                                        <th>Duration</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{range $.Users}}
+                                        {{if eq .FeatureName $featureName}}
+                                        <tr>
+                                            <td>{{.Username}}</td>
+                                            <td>{{.Host}}</td>
+                                            <td>{{.CheckedOutAt.Format "2006-01-02 15:04:05"}}</td>
+                                            <td>{{timeSince .CheckedOutAt}}</td>
+                                        </tr>
+                                        {{end}}
+                                    {{end}}
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+                {{end}}
+                {{end}}
+            </tbody>
+        </table>
         {{else}}
         <div class="alert alert-warning">
             <strong>No data available.</strong> License feature information could not be retrieved.
@@ -142,19 +187,120 @@
 
     <script src="/static/js/bootstrap.min.js"></script>
     <script>
-        // Filter features based on checkout status
         document.addEventListener('DOMContentLoaded', function() {
+            // Table sorting functionality
+            const table = document.getElementById('featuresTable');
+            if (table) {
+                const headers = table.querySelectorAll('th.sortable');
+                const tbody = table.querySelector('tbody');
+                let currentSort = { column: -1, direction: 'asc' };
+
+                headers.forEach(header => {
+                    header.addEventListener('click', function() {
+                        const column = parseInt(this.getAttribute('data-column'));
+                        const type = this.getAttribute('data-type');
+
+                        // Determine sort direction
+                        let direction = 'asc';
+                        if (currentSort.column === column && currentSort.direction === 'asc') {
+                            direction = 'desc';
+                        }
+
+                        // Update sort state
+                        currentSort = { column, direction };
+
+                        // Remove sort classes from all headers
+                        headers.forEach(h => h.classList.remove('asc', 'desc'));
+
+                        // Add sort class to current header
+                        this.classList.add(direction);
+
+                        // Sort the table
+                        sortTable(column, direction, type);
+                    });
+                });
+
+                function sortTable(column, direction, type) {
+                    // Get all feature rows (not checkout rows)
+                    const allRows = Array.from(tbody.querySelectorAll('tr'));
+                    const featureRows = allRows.filter(row => row.classList.contains('feature-row'));
+
+                    // Create pairs of feature row and its checkout row (if any)
+                    const rowPairs = featureRows.map(featureRow => {
+                        const featureIndex = featureRow.getAttribute('data-feature-index');
+                        const checkoutRow = tbody.querySelector(`tr.checkout-row[data-feature-index="${featureIndex}"]`);
+                        return { featureRow, checkoutRow };
+                    });
+
+                    // Sort the pairs
+                    rowPairs.sort((a, b) => {
+                        const aCell = a.featureRow.cells[column];
+                        const bCell = b.featureRow.cells[column];
+
+                        let aValue, bValue;
+
+                        if (type === 'number') {
+                            aValue = parseFloat(aCell.textContent) || 0;
+                            bValue = parseFloat(bCell.textContent) || 0;
+                        } else {
+                            aValue = aCell.textContent.trim().toLowerCase();
+                            bValue = bCell.textContent.trim().toLowerCase();
+                        }
+
+                        if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+                        if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+
+                    // Re-append rows in sorted order
+                    rowPairs.forEach(pair => {
+                        tbody.appendChild(pair.featureRow);
+                        if (pair.checkoutRow) {
+                            tbody.appendChild(pair.checkoutRow);
+                        }
+                    });
+                }
+            }
+
+            // Expand/collapse checkout details
+            const expandableRows = document.querySelectorAll('.expandable-row');
+            expandableRows.forEach(row => {
+                row.addEventListener('click', function() {
+                    const featureIndex = this.getAttribute('data-feature-index');
+                    const checkoutRow = document.querySelector(`.checkout-row[data-feature-index="${featureIndex}"]`);
+                    const expandIcon = this.querySelector('.expand-icon');
+
+                    if (checkoutRow) {
+                        checkoutRow.classList.toggle('show');
+                        if (expandIcon) {
+                            expandIcon.classList.toggle('expanded');
+                        }
+                    }
+                });
+            });
+
+            // Filter features based on checkout status
             const showCheckedOutBtn = document.getElementById('showCheckedOutOnly');
             const showAllBtn = document.getElementById('showAll');
-            const featureCards = document.querySelectorAll('.feature-card');
+            const featureRows = document.querySelectorAll('.feature-row');
 
             function filterFeatures(showOnlyCheckedOut) {
-                featureCards.forEach(function(card) {
-                    const hasCheckouts = card.getAttribute('data-has-checkouts') === 'true';
+                featureRows.forEach(function(row) {
+                    const hasCheckouts = row.getAttribute('data-has-checkouts') === 'true';
+                    const featureIndex = row.getAttribute('data-feature-index');
+                    const checkoutRow = document.querySelector(`.checkout-row[data-feature-index="${featureIndex}"]`);
+
                     if (showOnlyCheckedOut && !hasCheckouts) {
-                        card.style.display = 'none';
+                        row.style.display = 'none';
+                        if (checkoutRow) {
+                            checkoutRow.style.display = 'none';
+                        }
                     } else {
-                        card.style.display = 'block';
+                        row.style.display = '';
+                        // Don't automatically show checkout row, only if it was expanded
+                        if (checkoutRow && checkoutRow.classList.contains('show')) {
+                            checkoutRow.style.display = '';
+                        }
                     }
                 });
 
