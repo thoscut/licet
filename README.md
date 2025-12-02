@@ -1,6 +1,6 @@
 # Licet - Go Edition
 
-A modern rewrite of Licet in Go, providing license server monitoring with improved performance, security, and maintainability.
+A Go reimplementation forked from [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher), providing license server monitoring with improved performance, security, and maintainability.
 
 ## Features
 
@@ -327,8 +327,8 @@ Licet includes third-party JavaScript and CSS libraries (Bootstrap, Chart.js, et
 
 ## Credits
 
-- Original Licet by Vladimir Vuksan
-- Go rewrite maintains compatibility while modernizing the codebase
+- Forked from [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher) by Vladimir Vuksan
+- Licet is a complete Go reimplementation with improved performance, security, and maintainability
 
 ## Support
 
