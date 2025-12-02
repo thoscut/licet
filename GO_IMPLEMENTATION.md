@@ -1,6 +1,6 @@
 # Go Reimplementation of Licet
 
-This directory contains a complete reimplementation of Licet in Go, providing all the functionality of the original PHP version with significant improvements in performance, security, and maintainability.
+This directory contains a complete reimplementation of Licet in Go, forked from [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher). It provides all the functionality of the original PHP version with significant improvements in performance, security, and maintainability.
 
 ## What's Included
 
@@ -253,4 +253,4 @@ For production deployment:
 
 ## License
 
-GNU General Public License v3.0 - Same as original Licet
+GNU General Public License v3.0 - Same as original phplicensewatcher

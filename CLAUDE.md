@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Licet is a **Go-based** web application for monitoring software license servers. It was originally written in PHP but has been completely rewritten in Go for improved performance, security, and maintainability.
+Licet is a **Go-based** web application for monitoring software license servers. It is a fork of [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher), completely rewritten in Go for improved performance, security, and maintainability.
 
 **Current Version:** 1.9.2+ (Go Edition)
 
@@ -726,7 +726,7 @@ The Go version significantly outperforms the PHP version:
 - **Main Documentation**: README.md
 - **Go Implementation Details**: GO_IMPLEMENTATION.md
 - **Example Configuration**: config.example.yaml
-- **Original Licet**: http://freshmeat.net/projects/licet/
+- **Original Project (PHP)**: https://github.com/proche-rainmaker/phplicensewatcher
 - **FlexLM Documentation**: http://www.globetrotter.com/flexlm/
 - **RLM Documentation**: https://www.reprisesoftware.com/
 
