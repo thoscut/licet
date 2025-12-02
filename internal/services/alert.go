@@ -48,6 +48,15 @@ func (s *AlertService) GetUnsentAlerts() ([]models.Alert, error) {
 	return alerts, err
 }
 
+// GetActiveAlerts returns all alerts from the last 30 days, both sent and unsent
+func (s *AlertService) GetActiveAlerts() ([]models.Alert, error) {
+	var alerts []models.Alert
+	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+	query := `SELECT * FROM alerts WHERE created_at > ? ORDER BY created_at DESC`
+	err := s.db.Select(&alerts, query, thirtyDaysAgo)
+	return alerts, err
+}
+
 func (s *AlertService) MarkAlertSent(alertID int64) error {
 	query := `UPDATE alerts SET sent = 1, sent_at = ? WHERE id = ?`
 	_, err := s.db.Exec(query, time.Now(), alertID)
