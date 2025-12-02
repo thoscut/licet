@@ -38,6 +38,9 @@ func LoadTemplates() *template.Template {
 	// Create a FuncMap with custom template functions
 	funcMap := template.FuncMap{
 		"timeSince": timeSince,
+		"add": func(a, b int) int {
+			return a + b
+		},
 	}
 
 	// Parse templates with custom functions
