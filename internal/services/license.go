@@ -206,23 +206,32 @@ func (s *LicenseService) GetCurrentUtilization(serverFilter string) ([]models.Ut
 
 	query := `
 		SELECT
-			server_hostname,
-			name as feature_name,
-			total_licenses,
-			used_licenses,
-			(total_licenses - used_licenses) as available_licenses,
+			f.server_hostname,
+			f.name as feature_name,
+			f.version,
+			f.total_licenses,
+			f.used_licenses,
+			(f.total_licenses - f.used_licenses) as available_licenses,
 			CASE
-				WHEN total_licenses > 0 THEN (used_licenses * 100.0 / total_licenses)
+				WHEN f.total_licenses > 0 THEN (f.used_licenses * 100.0 / f.total_licenses)
 				ELSE 0
 			END as utilization_pct,
-			vendor_daemon
-		FROM features
-		WHERE total_licenses > 0
+			f.vendor_daemon
+		FROM features f
+		INNER JOIN (
+			SELECT server_hostname, name, MAX(last_updated) as latest
+			FROM features
+			WHERE total_licenses > 0
+			GROUP BY server_hostname, name
+		) latest ON f.server_hostname = latest.server_hostname
+		           AND f.name = latest.name
+		           AND f.last_updated = latest.latest
+		WHERE f.total_licenses > 0
 	`
 
 	args := []interface{}{}
 	if serverFilter != "" {
-		query += " AND server_hostname = ?"
+		query += " AND f.server_hostname = ?"
 		args = append(args, serverFilter)
 	}
 

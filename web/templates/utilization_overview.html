@@ -343,7 +343,8 @@
                                 </h6>
                                 <p class="card-text small text-muted mb-2">
                                     ${item.server_hostname}
-                                    ${item.vendor_daemon ? `<br><span class="badge bg-secondary">${item.vendor_daemon}</span>` : ''}
+                                    ${item.version ? `<br><span class="badge bg-info text-dark">v${item.version}</span>` : ''}
+                                    ${item.vendor_daemon ? ` <span class="badge bg-secondary">${item.vendor_daemon}</span>` : ''}
                                 </p>
                                 <div class="d-flex justify-content-between mb-2">
                                     <span>Usage</span>
@@ -411,10 +412,11 @@
             }
 
             const csv = [
-                ['Server', 'Feature', 'Vendor Daemon', 'Total Licenses', 'Used Licenses', 'Available', 'Utilization %'],
+                ['Server', 'Feature', 'Version', 'Vendor Daemon', 'Total Licenses', 'Used Licenses', 'Available', 'Utilization %'],
                 ...currentUtilizationData.map(item => [
                     item.server_hostname,
                     item.feature_name,
+                    item.version || '',
                     item.vendor_daemon || '',
                     item.total_licenses,
                     item.used_licenses,

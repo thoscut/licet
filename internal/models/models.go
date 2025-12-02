@@ -114,6 +114,7 @@ type ServerQueryResult struct {
 type UtilizationData struct {
 	ServerHostname    string  `json:"server_hostname" db:"server_hostname"`
 	FeatureName       string  `json:"feature_name" db:"feature_name"`
+	Version           string  `json:"version" db:"version"`
 	TotalLicenses     int     `json:"total_licenses" db:"total_licenses"`
 	UsedLicenses      int     `json:"used_licenses" db:"used_licenses"`
 	AvailableLicenses int     `json:"available_licenses" db:"available_licenses"`
