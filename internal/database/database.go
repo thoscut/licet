@@ -117,6 +117,11 @@ func RunMigrations(db *sqlx.DB) error {
 		return fmt.Errorf("failed to fix features table constraint: %w", err)
 	}
 
+	// Clean up duplicate permanent license records created before parser fix
+	if err := cleanupDuplicatePermanentLicenses(db); err != nil {
+		return fmt.Errorf("failed to clean up duplicate permanent licenses: %w", err)
+	}
+
 	return nil
 }
 
@@ -157,6 +162,38 @@ func fixFeaturesTableConstraint(db *sqlx.DB) error {
 		if _, err := tx.Exec(migration); err != nil {
 			return fmt.Errorf("constraint fix migration failed: %w", err)
 		}
+	}
+
+	return tx.Commit()
+}
+
+func cleanupDuplicatePermanentLicenses(db *sqlx.DB) error {
+	// This migration removes duplicate permanent license records that were created
+	// before the parser fix. Permanent licenses should all have the same expiration
+	// date (2099-01-01), but old records have varying timestamps.
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// For each (server_hostname, name, version) combination, keep only the latest
+	// record and delete the rest
+	query := `
+		DELETE FROM features
+		WHERE id NOT IN (
+			SELECT MAX(id)
+			FROM features
+			WHERE expiration_date IS NOT NULL
+			GROUP BY server_hostname, name, version
+		)
+		AND expiration_date IS NOT NULL
+	`
+
+	_, err = tx.Exec(query)
+	if err != nil {
+		return fmt.Errorf("failed to clean up duplicates: %w", err)
 	}
 
 	return tx.Commit()
