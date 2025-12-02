@@ -55,8 +55,11 @@ func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":   "License Server Status",
-		"Servers": serversWithStatus,
+		"Title":              "License Server Status",
+		"Servers":            serversWithStatus,
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "index.html", data); err != nil {
@@ -100,11 +103,14 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 		}
 
 		data := map[string]interface{}{
-			"Title":    "Server Details",
-			"Hostname": hostname,
-			"Features": features,
-			"Users":    []interface{}{}, // Empty users if query failed
-			"Error":    err.Error(),
+			"Title":              "Server Details",
+			"Hostname":           hostname,
+			"Features":           features,
+			"Users":              []interface{}{}, // Empty users if query failed
+			"Error":              err.Error(),
+			"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+			"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+			"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 		}
 
 		if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
@@ -114,10 +120,13 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":    "Server Details",
-		"Hostname": hostname,
-		"Features": result.Features,
-		"Users":    result.Users,
+		"Title":              "Server Details",
+		"Hostname":           hostname,
+		"Features":           result.Features,
+		"Users":              result.Users,
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
@@ -136,9 +145,12 @@ func (h *WebHandler) Expiration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":    "License Expiration",
-		"Hostname": hostname,
-		"Features": features,
+		"Title":              "License Expiration",
+		"Hostname":           hostname,
+		"Features":           features,
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "expiration.html", data); err != nil {
@@ -147,8 +159,17 @@ func (h *WebHandler) Expiration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebHandler) Utilization(w http.ResponseWriter, r *http.Request) {
+	// Check if utilization page is enabled
+	if !h.cfg.Server.UtilizationEnabled {
+		http.Error(w, "Utilization page is disabled", http.StatusForbidden)
+		return
+	}
+
 	data := map[string]interface{}{
-		"Title": "License Utilization Overview",
+		"Title":              "License Utilization Overview",
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "utilization_overview.html", data); err != nil {
@@ -158,8 +179,17 @@ func (h *WebHandler) Utilization(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebHandler) UtilizationTrends(w http.ResponseWriter, r *http.Request) {
+	// Check if utilization page is enabled
+	if !h.cfg.Server.UtilizationEnabled {
+		http.Error(w, "Utilization page is disabled", http.StatusForbidden)
+		return
+	}
+
 	data := map[string]interface{}{
-		"Title": "Usage Trends",
+		"Title":              "Usage Trends",
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "utilization_trends.html", data); err != nil {
@@ -169,8 +199,17 @@ func (h *WebHandler) UtilizationTrends(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebHandler) UtilizationAnalytics(w http.ResponseWriter, r *http.Request) {
+	// Check if utilization page is enabled
+	if !h.cfg.Server.UtilizationEnabled {
+		http.Error(w, "Utilization page is disabled", http.StatusForbidden)
+		return
+	}
+
 	data := map[string]interface{}{
-		"Title": "Predictive Analytics",
+		"Title":              "Predictive Analytics",
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "utilization_analytics.html", data); err != nil {
@@ -180,8 +219,17 @@ func (h *WebHandler) UtilizationAnalytics(w http.ResponseWriter, r *http.Request
 }
 
 func (h *WebHandler) UtilizationStats(w http.ResponseWriter, r *http.Request) {
+	// Check if utilization page is enabled
+	if !h.cfg.Server.UtilizationEnabled {
+		http.Error(w, "Utilization page is disabled", http.StatusForbidden)
+		return
+	}
+
 	data := map[string]interface{}{
-		"Title": "Detailed Statistics",
+		"Title":              "Detailed Statistics",
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "utilization_stats.html", data); err != nil {
@@ -192,7 +240,10 @@ func (h *WebHandler) UtilizationStats(w http.ResponseWriter, r *http.Request) {
 
 func (h *WebHandler) Denials(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{
-		"Title": "License Denials",
+		"Title":              "License Denials",
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "denials.html", data); err != nil {
@@ -209,8 +260,11 @@ func (h *WebHandler) Alerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":  "License Alerts",
-		"Alerts": alerts,
+		"Title":              "License Alerts",
+		"Alerts":             alerts,
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "alerts.html", data); err != nil {
@@ -236,14 +290,17 @@ func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
 	utilities := checker.CheckAll()
 
 	data := map[string]interface{}{
-		"Title":        "Application Settings",
-		"ServerPort":   h.cfg.Server.Port,
-		"DatabaseType": h.cfg.Database.Type,
-		"TotalServers": len(servers),
-		"Servers":      servers,
-		"Utilities":    utilities,
-		"EmailConfig":  h.cfg.Email,
-		"AlertConfig":  h.cfg.Alerts,
+		"Title":              "Application Settings",
+		"ServerPort":         h.cfg.Server.Port,
+		"DatabaseType":       h.cfg.Database.Type,
+		"TotalServers":       len(servers),
+		"Servers":            servers,
+		"Utilities":          utilities,
+		"EmailConfig":        h.cfg.Email,
+		"AlertConfig":        h.cfg.Alerts,
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "settings.html", data); err != nil {
@@ -252,8 +309,17 @@ func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebHandler) Statistics(w http.ResponseWriter, r *http.Request) {
+	// Check if statistics page is enabled
+	if !h.cfg.Server.StatisticsEnabled {
+		http.Error(w, "Statistics page is disabled", http.StatusForbidden)
+		return
+	}
+
 	data := map[string]interface{}{
-		"Title": "Statistics Dashboard",
+		"Title":              "Statistics Dashboard",
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "statistics.html", data); err != nil {
