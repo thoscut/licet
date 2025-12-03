@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/thoscut/licet/internal/config"
-	"github.com/thoscut/licet/internal/services"
+	"licet/internal/config"
+	"licet/internal/services"
 )
 
 // AddServer handles POST /api/v1/servers - adds a new license server to config file

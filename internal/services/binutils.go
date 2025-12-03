@@ -1,7 +1,7 @@
 package services
 
 import (
-	"github.com/thoscut/licet/internal/util"
+	"licet/internal/util"
 )
 
 // GetDefaultBinaryPaths returns a map of default binary paths for all supported license tools

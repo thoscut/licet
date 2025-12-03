@@ -1,4 +1,4 @@
-module github.com/thoscut/licet
+module licet
 
 go 1.24.0
 

@@ -7,10 +7,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	log "github.com/sirupsen/logrus"
-	"github.com/thoscut/licet/internal/config"
-	"github.com/thoscut/licet/internal/models"
-	"github.com/thoscut/licet/internal/services"
-	"github.com/thoscut/licet/web"
+	"licet/internal/config"
+	"licet/internal/models"
+	"licet/internal/services"
+	"licet/web"
 )
 
 type WebHandler struct {

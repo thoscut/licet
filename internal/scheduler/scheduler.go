@@ -5,8 +5,8 @@ import (
 
 	"github.com/robfig/cron/v3"
 	log "github.com/sirupsen/logrus"
-	"github.com/thoscut/licet/internal/config"
-	"github.com/thoscut/licet/internal/services"
+	"licet/internal/config"
+	"licet/internal/services"
 )
 
 type Scheduler struct {

@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/thoscut/licet/internal/services"
+	"licet/internal/services"
 )
 
 func ListServers(licenseService *services.LicenseService) http.HandlerFunc {

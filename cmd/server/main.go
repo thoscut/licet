@@ -9,12 +9,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/thoscut/licet/internal/config"
-	"github.com/thoscut/licet/internal/database"
-	"github.com/thoscut/licet/internal/handlers"
-	"github.com/thoscut/licet/internal/scheduler"
-	"github.com/thoscut/licet/internal/services"
-	"github.com/thoscut/licet/web"
+	"licet/internal/config"
+	"licet/internal/database"
+	"licet/internal/handlers"
+	"licet/internal/scheduler"
+	"licet/internal/services"
+	"licet/web"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"

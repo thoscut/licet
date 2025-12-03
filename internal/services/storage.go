@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/thoscut/licet/internal/models"
+	"licet/internal/models"
 )
 
 // StorageService handles feature storage and retrieval operations

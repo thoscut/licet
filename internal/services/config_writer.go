@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/thoscut/licet/internal/config"
+	"licet/internal/config"
 	"gopkg.in/yaml.v3"
 )
 

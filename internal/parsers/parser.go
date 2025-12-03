@@ -3,7 +3,7 @@ package parsers
 import (
 	"fmt"
 
-	"github.com/thoscut/licet/internal/models"
+	"licet/internal/models"
 )
 
 // Parser interface for all license server types

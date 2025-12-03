@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thoscut/licet/internal/models"
+	"licet/internal/models"
 )
 
 func TestFlexLMParser_ParsePermanentLicenses(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/thoscut/licet/internal/config"
-	"github.com/thoscut/licet/internal/models"
+	"licet/internal/config"
+	"licet/internal/models"
 )
 
 // LicenseService is a facade that combines Query, Storage, and Analytics services

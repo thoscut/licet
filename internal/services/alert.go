@@ -9,8 +9,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	log "github.com/sirupsen/logrus"
-	"github.com/thoscut/licet/internal/config"
-	"github.com/thoscut/licet/internal/models"
+	"licet/internal/config"
+	"licet/internal/models"
 )
 
 type AlertService struct {
