@@ -27,13 +27,16 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Type     string
-	Host     string
-	Port     int
-	Database string
-	Username string
-	Password string
-	SSLMode  string
+	Type           string `mapstructure:"type"`
+	Host           string `mapstructure:"host"`
+	Port           int    `mapstructure:"port"`
+	Database       string `mapstructure:"database"`
+	Username       string `mapstructure:"username"`
+	Password       string `mapstructure:"password"`
+	SSLMode        string `mapstructure:"sslmode"`
+	MaxOpenConns   int    `mapstructure:"max_open_conns"`   // Maximum open connections (default: 25)
+	MaxIdleConns   int    `mapstructure:"max_idle_conns"`   // Maximum idle connections (default: 5)
+	ConnMaxLifetime int   `mapstructure:"conn_max_lifetime"` // Connection max lifetime in minutes (default: 0 = unlimited)
 }
 
 type LoggingConfig struct {

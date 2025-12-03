@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/thoscut/licet/internal/config"
@@ -63,7 +64,10 @@ func (s *QueryService) QueryServer(hostname, serverType string) (models.ServerQu
 
 	// Store results in database if storage service is available
 	if s.storage != nil && result.Error == nil && len(result.Features) > 0 {
-		ctx := context.Background()
+		// Use context with timeout for database operations
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
 		log.Debugf("Storing %d features from %s to database", len(result.Features), hostname)
 		if err := s.storage.StoreFeatures(ctx, result.Features); err != nil {
 			log.Errorf("Failed to store features: %v", err)

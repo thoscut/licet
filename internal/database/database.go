@@ -3,6 +3,7 @@ package database
 import (
 	"embed"
 	"fmt"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
@@ -37,9 +38,27 @@ func New(cfg config.DatabaseConfig) (*sqlx.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Set connection pool settings
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
+	// Set connection pool settings with configurable values and defaults
+	maxOpenConns := cfg.MaxOpenConns
+	if maxOpenConns == 0 {
+		maxOpenConns = 25 // Default
+	}
+
+	maxIdleConns := cfg.MaxIdleConns
+	if maxIdleConns == 0 {
+		maxIdleConns = 5 // Default
+	}
+
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxIdleConns)
+
+	// Set connection max lifetime if configured
+	if cfg.ConnMaxLifetime > 0 {
+		db.SetConnMaxLifetime(time.Duration(cfg.ConnMaxLifetime) * time.Minute)
+	}
+
+	log.Debugf("Database connection pool: max_open=%d, max_idle=%d, max_lifetime=%dm",
+		maxOpenConns, maxIdleConns, cfg.ConnMaxLifetime)
 
 	return db, nil
 }

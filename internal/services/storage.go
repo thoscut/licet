@@ -21,22 +21,33 @@ func NewStorageService(db *sqlx.DB) *StorageService {
 	}
 }
 
-// StoreFeatures stores features to the database
+// StoreFeatures stores features to the database using optimized batch operations
 func (s *StorageService) StoreFeatures(ctx context.Context, features []models.Feature) error {
+	if len(features) == 0 {
+		return nil
+	}
+
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
+	// Prepare statement once for reuse
 	query := `
 		INSERT OR REPLACE INTO features
 		(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
+	stmt, err := tx.PreparexContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
 
+	now := time.Now()
 	for _, feature := range features {
-		_, err := tx.ExecContext(ctx, query,
+		_, err := stmt.ExecContext(ctx,
 			feature.ServerHostname,
 			feature.Name,
 			feature.Version,
@@ -44,7 +55,7 @@ func (s *StorageService) StoreFeatures(ctx context.Context, features []models.Fe
 			feature.TotalLicenses,
 			feature.UsedLicenses,
 			feature.ExpirationDate,
-			time.Now(),
+			now,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert feature %s: %w", feature.Name, err)
@@ -54,8 +65,12 @@ func (s *StorageService) StoreFeatures(ctx context.Context, features []models.Fe
 	return tx.Commit()
 }
 
-// RecordUsage records feature usage history
+// RecordUsage records feature usage history using optimized batch operations
 func (s *StorageService) RecordUsage(ctx context.Context, features []models.Feature) error {
+	if len(features) == 0 {
+		return nil
+	}
+
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
@@ -66,14 +81,20 @@ func (s *StorageService) RecordUsage(ctx context.Context, features []models.Feat
 	date := now.Format("2006-01-02")
 	timeStr := now.Format("15:04:00")
 
+	// Prepare statement once for reuse
 	query := `
 		INSERT OR IGNORE INTO feature_usage
 		(server_hostname, feature_name, date, time, users_count)
 		VALUES (?, ?, ?, ?, ?)
 	`
+	stmt, err := tx.PreparexContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
 
 	for _, feature := range features {
-		_, err := tx.ExecContext(ctx, query,
+		_, err := stmt.ExecContext(ctx,
 			feature.ServerHostname,
 			feature.Name,
 			date,
