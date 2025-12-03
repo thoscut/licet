@@ -55,7 +55,7 @@ func TestRunMigrations_SQLite(t *testing.T) {
 	defer db.Close()
 
 	// Run migrations
-	if err := RunMigrations(db); err != nil {
+	if err := RunMigrations(db, "sqlite"); err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -98,12 +98,12 @@ func TestRunMigrations_Idempotent(t *testing.T) {
 	defer db.Close()
 
 	// Run migrations first time
-	if err := RunMigrations(db); err != nil {
+	if err := RunMigrations(db, "sqlite"); err != nil {
 		t.Fatalf("Failed to run migrations first time: %v", err)
 	}
 
 	// Run migrations second time - should not error
-	if err := RunMigrations(db); err != nil {
+	if err := RunMigrations(db, "sqlite"); err != nil {
 		t.Errorf("Migrations should be idempotent, got error: %v", err)
 	}
 }
@@ -122,7 +122,7 @@ func TestServersTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := RunMigrations(db); err != nil {
+	if err := RunMigrations(db, "sqlite"); err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -161,7 +161,7 @@ func TestFeaturesTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := RunMigrations(db); err != nil {
+	if err := RunMigrations(db, "sqlite"); err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -200,7 +200,7 @@ func TestFeatureUsageTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := RunMigrations(db); err != nil {
+	if err := RunMigrations(db, "sqlite"); err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -239,7 +239,7 @@ func TestAlertsTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := RunMigrations(db); err != nil {
+	if err := RunMigrations(db, "sqlite"); err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -298,7 +298,7 @@ func TestDatabaseConstraints(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := RunMigrations(db); err != nil {
+	if err := RunMigrations(db, "sqlite"); err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 

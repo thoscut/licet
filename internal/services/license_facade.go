@@ -18,9 +18,10 @@ type LicenseService struct {
 
 // NewLicenseService creates a new license service facade
 func NewLicenseService(db *sqlx.DB, cfg *config.Config) *LicenseService {
-	storage := NewStorageService(db)
+	dbType := cfg.Database.Type
+	storage := NewStorageService(db, dbType)
 	query := NewQueryService(cfg, storage)
-	analytics := NewAnalyticsService(db, storage)
+	analytics := NewAnalyticsService(db, storage, dbType)
 
 	return &LicenseService{
 		Query:     query,

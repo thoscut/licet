@@ -11,13 +11,15 @@ import (
 
 // StorageService handles feature storage and retrieval operations
 type StorageService struct {
-	db *sqlx.DB
+	db     *sqlx.DB
+	dbType string
 }
 
 // NewStorageService creates a new storage service
-func NewStorageService(db *sqlx.DB) *StorageService {
+func NewStorageService(db *sqlx.DB, dbType string) *StorageService {
 	return &StorageService{
-		db: db,
+		db:     db,
+		dbType: dbType,
 	}
 }
 
@@ -33,12 +35,41 @@ func (s *StorageService) StoreFeatures(ctx context.Context, features []models.Fe
 	}
 	defer tx.Rollback()
 
-	// Prepare statement once for reuse
-	query := `
-		INSERT OR REPLACE INTO features
-		(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`
+	// Use database-specific upsert syntax
+	var query string
+	switch s.dbType {
+	case "postgres", "postgresql":
+		query = `
+			INSERT INTO features
+			(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (server_hostname, name, version) DO UPDATE SET
+				vendor_daemon = EXCLUDED.vendor_daemon,
+				total_licenses = EXCLUDED.total_licenses,
+				used_licenses = EXCLUDED.used_licenses,
+				expiration_date = EXCLUDED.expiration_date,
+				last_updated = EXCLUDED.last_updated
+		`
+	case "mysql":
+		query = `
+			INSERT INTO features
+			(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE
+				vendor_daemon = VALUES(vendor_daemon),
+				total_licenses = VALUES(total_licenses),
+				used_licenses = VALUES(used_licenses),
+				expiration_date = VALUES(expiration_date),
+				last_updated = VALUES(last_updated)
+		`
+	default: // sqlite
+		query = `
+			INSERT OR REPLACE INTO features
+			(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`
+	}
+
 	stmt, err := tx.PreparexContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
@@ -81,12 +112,30 @@ func (s *StorageService) RecordUsage(ctx context.Context, features []models.Feat
 	date := now.Format("2006-01-02")
 	timeStr := now.Format("15:04:00")
 
-	// Prepare statement once for reuse
-	query := `
-		INSERT OR IGNORE INTO feature_usage
-		(server_hostname, feature_name, date, time, users_count)
-		VALUES (?, ?, ?, ?, ?)
-	`
+	// Use database-specific insert-ignore syntax
+	var query string
+	switch s.dbType {
+	case "postgres", "postgresql":
+		query = `
+			INSERT INTO feature_usage
+			(server_hostname, feature_name, date, time, users_count)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (server_hostname, feature_name, date, time) DO NOTHING
+		`
+	case "mysql":
+		query = `
+			INSERT IGNORE INTO feature_usage
+			(server_hostname, feature_name, date, time, users_count)
+			VALUES (?, ?, ?, ?, ?)
+		`
+	default: // sqlite
+		query = `
+			INSERT OR IGNORE INTO feature_usage
+			(server_hostname, feature_name, date, time, users_count)
+			VALUES (?, ?, ?, ?, ?)
+		`
+	}
+
 	stmt, err := tx.PreparexContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
