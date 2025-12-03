@@ -8,7 +8,8 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	handler := Health()
+	testVersion := "1.0.0-test"
+	handler := Health(testVersion)
 	req := httptest.NewRequest("GET", "/api/v1/health", nil)
 	w := httptest.NewRecorder()
 
@@ -26,5 +27,10 @@ func TestHealth(t *testing.T) {
 	status, ok := response["status"].(string)
 	if !ok || status != "ok" {
 		t.Errorf("Expected status 'ok', got %v", status)
+	}
+
+	version, ok := response["version"].(string)
+	if !ok || version != testVersion {
+		t.Errorf("Expected version '%s', got %v", testVersion, version)
 	}
 }

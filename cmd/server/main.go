@@ -22,6 +22,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Version is set at build time via ldflags
+var Version = "dev"
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -32,7 +35,7 @@ func main() {
 	// Setup logging
 	setupLogging(cfg)
 
-	log.Info("Starting Licet (Go Edition)")
+	log.WithField("version", Version).Info("Starting Licet (Go Edition)")
 
 	// Initialize database
 	db, err := database.New(cfg.Database)
@@ -57,7 +60,7 @@ func main() {
 	defer sched.Stop()
 
 	// Setup HTTP router
-	r := setupRouter(cfg, licenseService, alertService)
+	r := setupRouter(cfg, licenseService, alertService, Version)
 
 	// Start HTTP server
 	srv := &http.Server{
@@ -110,7 +113,7 @@ func setupLogging(cfg *config.Config) {
 	}
 }
 
-func setupRouter(cfg *config.Config, licenseService *services.LicenseService, alertService *services.AlertService) *chi.Mux {
+func setupRouter(cfg *config.Config, licenseService *services.LicenseService, alertService *services.AlertService, version string) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middleware
@@ -140,7 +143,7 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 	r.Handle("/static/*", http.StripPrefix("/static/", fileServer))
 
 	// Web handlers
-	webHandler := handlers.NewWebHandler(licenseService, alertService, cfg)
+	webHandler := handlers.NewWebHandler(licenseService, alertService, cfg, version)
 	r.Get("/", webHandler.Index)
 	r.Get("/details/{server}", webHandler.Details)
 	r.Get("/expiration/{server}", webHandler.Expiration)
@@ -167,7 +170,7 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 		r.Get("/utilities/check", handlers.CheckUtilities())
 		r.Post("/settings/email", handlers.UpdateEmailSettings(cfg))
 		r.Post("/settings/alerts", handlers.UpdateAlertSettings(cfg))
-		r.Get("/health", handlers.Health())
+		r.Get("/health", handlers.Health(version))
 
 		// Utilization endpoints
 		r.Get("/utilization/current", handlers.GetCurrentUtilization(licenseService))
