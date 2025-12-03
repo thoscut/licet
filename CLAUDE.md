@@ -207,11 +207,11 @@ rrd:
 Configuration can be overridden with environment variables:
 
 ```bash
-PLW_SERVER_PORT=8080
-PLW_DATABASE_TYPE=postgres
-PLW_DATABASE_HOST=localhost
-PLW_DATABASE_DATABASE=licet
-PLW_LOGGING_LEVEL=debug
+LICET_SERVER_PORT=8080
+LICET_DATABASE_TYPE=postgres
+LICET_DATABASE_HOST=localhost
+LICET_DATABASE_DATABASE=licet
+LICET_LOGGING_LEVEL=debug
 ```
 
 ## Database Schema

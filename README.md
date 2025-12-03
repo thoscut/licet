@@ -121,7 +121,7 @@ logging:
 Or set via environment variable:
 
 ```bash
-PLW_LOGGING_LEVEL=debug ./licet
+LICET_LOGGING_LEVEL=debug ./licet
 ```
 
 ## API Endpoints
