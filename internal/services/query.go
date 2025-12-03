@@ -5,9 +5,9 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/thoscut/licet/internal/config"
-	"github.com/thoscut/licet/internal/models"
-	"github.com/thoscut/licet/internal/parsers"
+	"licet/internal/config"
+	"licet/internal/models"
+	"licet/internal/parsers"
 )
 
 // QueryService handles license server query operations

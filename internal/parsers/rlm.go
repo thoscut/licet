@@ -11,8 +11,8 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/thoscut/licet/internal/models"
-	"github.com/thoscut/licet/internal/util"
+	"licet/internal/models"
+	"licet/internal/util"
 )
 
 type RLMParser struct {

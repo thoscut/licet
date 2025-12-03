@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thoscut/licet/internal/models"
+	"licet/internal/models"
 )
 
 func TestRLMParser_ParseOutput_WithCheckouts(t *testing.T) {

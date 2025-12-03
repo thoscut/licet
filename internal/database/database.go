@@ -11,7 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-	"github.com/thoscut/licet/internal/config"
+	"licet/internal/config"
 )
 
 //go:embed migrations/*.sql

@@ -3,8 +3,8 @@ package services
 import (
 	"testing"
 
-	"github.com/thoscut/licet/internal/config"
-	"github.com/thoscut/licet/internal/models"
+	"licet/internal/config"
+	"licet/internal/models"
 )
 
 func TestGetAllServers(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	log "github.com/sirupsen/logrus"
-	"github.com/thoscut/licet/internal/models"
+	"licet/internal/models"
 )
 
 // AnalyticsService handles utilization analytics and predictive operations

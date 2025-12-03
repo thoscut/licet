@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/thoscut/licet/internal/config"
+	"licet/internal/config"
 )
 
 func TestNew_SQLite(t *testing.T) {
