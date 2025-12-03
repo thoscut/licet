@@ -6,6 +6,9 @@ server:
   settings_enabled: true  # Set to false to disable access to the settings page
   utilization_enabled: true  # Set to false to disable access to the utilization pages
   statistics_enabled: true  # Set to false to disable access to the statistics page
+  cors_origins:  # Allowed origins for CORS (leave empty or set to ["*"] for wildcard - NOT RECOMMENDED)
+    - "http://localhost:8080"
+    - "https://yourdomain.com"
 
 database:
   # Options: sqlite, postgres, mysql
@@ -18,6 +21,11 @@ database:
   # username: licet
   # password: changeme
   # sslmode: disable
+
+  # Connection pool settings (optional, defaults shown):
+  # max_open_conns: 25       # Maximum open connections (0 = use default)
+  # max_idle_conns: 5        # Maximum idle connections (0 = use default)
+  # conn_max_lifetime: 0     # Connection max lifetime in minutes (0 = unlimited)
 
 logging:
   level: info  # debug, info, warn, error

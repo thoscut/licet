@@ -1,7 +1,9 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -32,10 +34,45 @@ func (s *CollectorService) CollectAll() error {
 		return err
 	}
 
+	// Use parallel collection with worker pool
+	// Limit concurrent queries to avoid overwhelming license servers
+	maxWorkers := 5
+	if len(servers) < maxWorkers {
+		maxWorkers = len(servers)
+	}
+
+	var wg sync.WaitGroup
+	serverChan := make(chan models.LicenseServer, len(servers))
+	errorChan := make(chan error, len(servers))
+
+	// Start worker goroutines
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for server := range serverChan {
+				if err := s.CollectServer(server); err != nil {
+					log.Errorf("Failed to collect data for %s: %v", server.Hostname, err)
+					errorChan <- err
+				}
+			}
+		}()
+	}
+
+	// Send servers to workers
 	for _, server := range servers {
-		if err := s.CollectServer(server); err != nil {
-			log.Errorf("Failed to collect data for %s: %v", server.Hostname, err)
-		}
+		serverChan <- server
+	}
+	close(serverChan)
+
+	// Wait for all workers to complete
+	wg.Wait()
+	close(errorChan)
+
+	// Check if any errors occurred
+	errorCount := len(errorChan)
+	if errorCount > 0 {
+		log.Warnf("Collection completed with %d errors", errorCount)
 	}
 
 	log.Info("License data collection completed")
@@ -60,7 +97,8 @@ func (s *CollectorService) CollectServer(server models.LicenseServer) error {
 func (s *CollectorService) CheckExpirations() error {
 	log.Info("Checking for expiring licenses")
 
-	features, err := s.licenseService.GetExpiringFeatures(s.cfg.Alerts.LeadTimeDays)
+	ctx := context.Background()
+	features, err := s.licenseService.GetExpiringFeatures(ctx, s.cfg.Alerts.LeadTimeDays)
 	if err != nil {
 		return err
 	}
@@ -100,7 +138,7 @@ func (s *CollectorService) CheckExpirations() error {
 
 		// Check throttle before creating alert
 		if !alertService.CheckThrottle(feature.ServerHostname, "expiration") {
-			if err := alertService.CreateAlert(alert); err != nil {
+			if err := alertService.CreateAlert(ctx, alert); err != nil {
 				log.Errorf("Failed to create alert: %v", err)
 			}
 		}
