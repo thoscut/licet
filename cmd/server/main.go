@@ -35,7 +35,7 @@ func main() {
 	// Setup logging
 	setupLogging(cfg)
 
-	log.WithField("version", Version).Info("Starting Licet (Go Edition)")
+	log.WithField("version", Version).Info("Starting Licet")
 
 	// Initialize database
 	db, err := database.New(cfg.Database)

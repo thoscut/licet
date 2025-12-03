@@ -102,7 +102,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("rrd.collectionInterval", 5)
 
 	// Environment variables
-	viper.SetEnvPrefix("PLW")
+	viper.SetEnvPrefix("LICET")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 

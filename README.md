@@ -1,6 +1,6 @@
-# Licet - Go Edition
+# Licet
 
-A Go reimplementation forked from [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher), providing license server monitoring with improved performance, security, and maintainability.
+A modern license server monitoring application providing real-time tracking, historical data, and alerting for FlexLM, RLM, and other license servers.
 
 ## Features
 
@@ -121,7 +121,7 @@ logging:
 Or set via environment variable:
 
 ```bash
-PLW_LOGGING_LEVEL=debug ./licet
+LICET_LOGGING_LEVEL=debug ./licet
 ```
 
 ## API Endpoints
@@ -253,13 +253,15 @@ GOOS=windows GOARCH=amd64 go build -o licet-windows-amd64.exe ./cmd/server
 
 ### Migration from PHP Version
 
+If migrating from the original PHP implementation:
+
 1. Export data from existing MySQL/PostgreSQL database
-2. Configure Go version with same database credentials
+2. Configure Licet with same database credentials
 3. Run migrations (automatic on startup)
 4. Configure servers in `config.yaml`
-5. Start the Go server
+5. Start the server
 
-The database schema is compatible with the PHP version for `feature_usage` and `license_events` tables.
+The database schema is compatible with the original PHP implementation for `feature_usage` and `license_events` tables.
 
 ## Troubleshooting
 
@@ -294,12 +296,12 @@ psql -h localhost -U licet -d licet
 
 ## Performance
 
-The Go version significantly outperforms the PHP version:
+Licet is designed for high performance and low resource usage:
 
-- **Startup**: < 1 second (vs 2-5 seconds for PHP)
-- **Memory**: ~20MB (vs 50-100MB for PHP+Apache)
-- **Concurrent Requests**: 1000s/sec (vs 100s/sec for PHP)
-- **License Queries**: Parallel execution (vs sequential in PHP)
+- **Startup**: < 1 second
+- **Memory**: ~20MB baseline
+- **Concurrent Requests**: 1000s/sec
+- **License Queries**: Parallel execution for multiple servers
 
 ## Contributing
 
@@ -327,8 +329,8 @@ Licet includes third-party JavaScript and CSS libraries (Bootstrap, Chart.js, et
 
 ## Credits
 
-- Forked from [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher) by Vladimir Vuksan
-- Licet is a complete Go reimplementation with improved performance, security, and maintainability
+- Originally forked from [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher) by Vladimir Vuksan
+- Completely rewritten for improved performance, security, and maintainability
 
 ## Support
 

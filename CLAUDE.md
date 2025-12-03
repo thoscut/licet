@@ -1,10 +1,10 @@
-# Licet - AI Assistant Guide (Go Edition)
+# Licet - AI Assistant Guide
 
 ## Project Overview
 
-Licet is a **Go-based** web application for monitoring software license servers. It is a fork of [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher), completely rewritten in Go for improved performance, security, and maintainability.
+Licet is a web application for monitoring software license servers. It was originally forked from [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher) and completely rewritten for improved performance, security, and maintainability.
 
-**Current Version:** 1.9.2+ (Go Edition)
+**Current Version:** 1.9.2+
 
 **License:** GNU General Public License v3.0
 
@@ -24,7 +24,7 @@ Licet is a **Go-based** web application for monitoring software license servers.
 
 ## Supported License Server Types
 
-The Go version currently implements:
+Currently implemented license server types:
 
 1. **FlexLM** ✅ - Fully implemented (Flexera License Manager)
 2. **RLM** ✅ - Fully implemented (Reprise License Manager)
@@ -207,11 +207,11 @@ rrd:
 Configuration can be overridden with environment variables:
 
 ```bash
-PLW_SERVER_PORT=8080
-PLW_DATABASE_TYPE=postgres
-PLW_DATABASE_HOST=localhost
-PLW_DATABASE_DATABASE=licet
-PLW_LOGGING_LEVEL=debug
+LICET_SERVER_PORT=8080
+LICET_DATABASE_TYPE=postgres
+LICET_DATABASE_HOST=localhost
+LICET_DATABASE_DATABASE=licet
+LICET_LOGGING_LEVEL=debug
 ```
 
 ## Database Schema
@@ -645,24 +645,24 @@ type ServerStatus struct {
 - Log errors with appropriate level
 - Return meaningful HTTP status codes
 
-## Security Improvements Over PHP Version
+## Security Features
 
-### Fixed Vulnerabilities
+### Built-in Security
 
-1. **SQL Injection** ✅
-   - PHP version: Direct variable interpolation
-   - Go version: Prepared statements throughout (sqlx)
+1. **SQL Injection Protection** ✅
+   - All database queries use prepared statements (sqlx)
+   - No direct string interpolation in queries
 
-2. **Command Injection** ✅
-   - PHP version: User input in popen() calls
-   - Go version: Proper command execution with args separation
+2. **Command Injection Protection** ✅
+   - Proper command execution with argument separation
+   - No shell interpretation of user input
 
-3. **XSS** ✅
-   - PHP version: Insufficient output escaping
-   - Go version: Automatic escaping in html/template
+3. **XSS Protection** ✅
+   - Automatic output escaping in html/template
+   - Context-aware template rendering
 
 4. **Authentication** ⚠️
-   - Still recommended: Run behind VPN or add reverse proxy auth
+   - Recommended: Run behind VPN or add reverse proxy auth
    - Settings page can be disabled: `server.settings_enabled: false`
 
 ### Security Best Practices
@@ -677,13 +677,13 @@ type ServerStatus struct {
 
 ## Performance Characteristics
 
-The Go version significantly outperforms the PHP version:
+Licet is designed for high performance and low resource usage:
 
-- **Startup Time**: < 1 second (vs 2-5 seconds PHP)
-- **Memory Usage**: ~20MB (vs 50-100MB PHP+Apache)
-- **Concurrent Requests**: 1000s/sec (vs 100s/sec PHP)
-- **License Queries**: Parallel execution (vs sequential PHP)
-- **Binary Size**: ~20MB single binary (vs PHP+dependencies)
+- **Startup Time**: < 1 second
+- **Memory Usage**: ~20MB baseline
+- **Concurrent Requests**: 1000s/sec
+- **License Queries**: Parallel execution for multiple servers
+- **Binary Size**: ~20MB single self-contained binary
 
 ## Git Workflow
 
@@ -750,7 +750,7 @@ The Go version significantly outperforms the PHP version:
 
 ## Version History
 
-**Current Version: 1.9.2+ (Go Edition)**
+**Current Version: 1.9.2+**
 
 Recent changes (from git log):
 - Fixed license expiration page display issues
@@ -764,4 +764,4 @@ Recent changes (from git log):
 
 ---
 
-*This guide reflects the Go rewrite of Licet. For historical PHP version documentation, see git history.*
+*For historical development information, see git history.*

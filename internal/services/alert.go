@@ -135,7 +135,7 @@ Message:
 %s
 
 --
-Licet (Go Edition)
+Licet
 `,
 		alert.ServerHostname,
 		alert.FeatureName,

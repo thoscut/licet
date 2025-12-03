@@ -79,7 +79,7 @@ featureRe := regexp.MustCompile(`users of\s+(.+?):\s+\(Total of (\d+) license[s]
 - Does not check for "no such feature exists"
 
 ### ⚠️ **ISSUE 1: Case Sensitivity**
-The PHP version uses case-insensitive matching, Go version is case-sensitive. This could fail if output has variations like:
+The original PHP implementation uses case-insensitive matching, Licet is case-sensitive. This could fail if output has variations like:
 - "Users of" vs "users of"
 - "total of" vs "Total of"
 
@@ -139,7 +139,7 @@ expirationRe := regexp.MustCompile(`(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\d+-\w+-\d
 - Only: `FEATURE VERSION COUNT DATE VENDOR` (new format)
 
 ### 🚨 **CRITICAL ISSUE: Missing Permanent License Support**
-The Go version **DOES NOT** handle permanent licenses! This is a significant missing feature.
+The Licet **DOES NOT** handle permanent licenses! This is a significant missing feature.
 
 ---
 
@@ -256,7 +256,7 @@ To verify compatibility, test with:
 
 ## Conclusion
 
-The Go implementation is mostly faithful to the PHP version but has **critical missing functionality**:
+The Go implementation is mostly faithful to the original PHP implementation but has **critical missing functionality**:
 - No support for permanent licenses
 - No support for old expiration date format
 - Case-sensitive matching could cause issues
