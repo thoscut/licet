@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The **Licet** project on the main branch represents a complete **Go reimplementation** of PHPLicenseWatcher - a license server monitoring application. This is a modern rewrite that transforms a legacy PHP application into a performant, secure, and maintainable Go-based system.
+The **Licet** project on the main branch represents a complete **rewrite** of PHPLicenseWatcher - a license server monitoring application. This is a modern rewrite that transforms a legacy PHP application into a performant, secure, and maintainable modern system.
 
 **Project Name:** Licet (renamed from PHPLicenseWatcher)
 **Repository:** thoscut/licet
@@ -19,13 +19,13 @@ The **Licet** project on the main branch represents a complete **Go reimplementa
 The main branch shows a clear evolution from PHP to Go:
 
 1. **abf9316** - Initial commit
-2. **f0879d7** - First commit (PHP version)
-3. **0c15d07 - 4bb9107** - README updates for PHP version
+2. **f0879d7** - First commit (original PHP implementation)
+3. **0c15d07 - 4bb9107** - README updates for original PHP implementation
 4. **4206976** - Fix server name handling
 5. **995d343** - Add bootstrap restore/remove functionality
 6. **1c22ebb** - Cleanup version footer
 7. **510705e** - Add comprehensive CLAUDE.md documentation
-8. **852aaa9** - **MAJOR**: Add complete Go reimplementation
+8. **852aaa9** - **MAJOR**: Add complete rewrite
 9. **8fa6ff6** - Remove all PHP files and legacy assets
 10. **b5306bd** - Rename README.go.md to README.md
 11. **b02d690** - Rename project to Licet
@@ -336,18 +336,18 @@ docker run -d -p 8080:8080 \
 ## Migration Path (PHP → Go)
 
 ### Compatibility
-- Database schema compatible with PHP version
+- Database schema compatible with original PHP implementation
 - Both versions can run simultaneously
 - Gradual migration supported
 
 ### Migration Steps
 1. Export existing MySQL/PostgreSQL data
-2. Configure Go version with same DB credentials
+2. Configure Licet with same DB credentials
 3. Run migrations (automatic on startup)
 4. Configure servers in `config.yaml`
 5. Start Go server
 6. Verify functionality
-7. Decommission PHP version
+7. Decommission original PHP implementation
 
 ---
 
@@ -373,7 +373,7 @@ docker run -d -p 8080:8080 \
 - Go-specific implementation details
 - API examples
 - Build instructions
-- Comparison with PHP version
+- Comparison with original PHP implementation
 
 **4. LICENSE** (340 lines)
 - GNU General Public License v3.0

@@ -1,6 +1,6 @@
-# Go Reimplementation of Licet
+# Licet Implementation Guide
 
-This directory contains a complete reimplementation of Licet in Go, forked from [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher). It provides all the functionality of the original PHP version with significant improvements in performance, security, and maintainability.
+Licet is a modern license server monitoring application, originally forked from [phplicensewatcher](https://github.com/proche-rainmaker/phplicensewatcher). This document provides technical details about the current implementation.
 
 ## What's Included
 
@@ -36,7 +36,7 @@ web/
   └── templates/                # HTML templates
 ```
 
-## Key Improvements Over PHP Version
+## Key Features
 
 ### Security
 - **No SQL Injection**: All queries use prepared statements
@@ -148,7 +148,7 @@ alerts:
 
 ## Database Schema
 
-The Go version maintains compatibility with the PHP version's database schema for easy migration:
+The Licet maintains compatibility with the original PHP implementation's database schema for easy migration:
 
 - `servers` - Configured license servers (new)
 - `features` - License features and current usage
@@ -182,7 +182,7 @@ make docker
 ## Migration from PHP Version
 
 1. Keep existing database (MySQL/PostgreSQL)
-2. Configure Go version with same credentials
+2. Configure Licet with same credentials
 3. Copy server definitions to `config.yaml`
 4. Run Go binary - migrations will run automatically
 5. Both versions can run side-by-side during transition
@@ -214,20 +214,20 @@ make docker
 - `web/templates/index.html` - Main dashboard template
 
 ### Documentation
-- `README.go.md` - Complete Go version documentation
+- `README.go.md` - Complete Licet documentation
 - `GO_IMPLEMENTATION.md` - This file
 
 ## Lines of Code
 
 Total: ~2,000 lines of Go code providing:
-- All core functionality of PHP version
+- All core functionality of original PHP implementation
 - Additional REST API
 - Improved security and performance
 - Better error handling
 - Structured logging
 - Modern configuration
 
-Compare to PHP version: ~1,500 lines but with:
+Compare to original PHP implementation: ~1,500 lines but with:
 - Security vulnerabilities
 - No tests
 - No API

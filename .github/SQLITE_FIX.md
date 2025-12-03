@@ -43,7 +43,7 @@ The Makefile already sets CGO_ENABLED=1 by default.
 
 After rebuilding, you should see:
 ```
-time="..." level=info msg="Starting Licet (Go Edition)"
+time="..." level=info msg="Starting Licet (Licet)"
 time="..." level=info msg="Server listening on :8080"
 ```
 
