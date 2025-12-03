@@ -45,7 +45,7 @@ func main() {
 	defer db.Close()
 
 	// Run migrations
-	if err := database.RunMigrations(db); err != nil {
+	if err := database.RunMigrations(db, cfg.Database.Type); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 

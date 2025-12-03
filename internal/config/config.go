@@ -64,9 +64,9 @@ type EmailConfig struct {
 }
 
 type AlertConfig struct {
-	LeadTimeDays      int
-	ResendIntervalMin int
-	Enabled           bool
+	LeadTimeDays      int  `mapstructure:"lead_time_days"`
+	ResendIntervalMin int  `mapstructure:"resend_interval_min"`
+	Enabled           bool `mapstructure:"enabled"`
 }
 
 type RRDConfig struct {
@@ -94,8 +94,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("database.sslmode", "disable")
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "text")
-	viper.SetDefault("alerts.leadTimedays", 10)
-	viper.SetDefault("alerts.resendIntervalMin", 60)
+	viper.SetDefault("alerts.lead_time_days", 10)
+	viper.SetDefault("alerts.resend_interval_min", 60)
 	viper.SetDefault("alerts.enabled", false)
 	viper.SetDefault("email.enabled", false)
 	viper.SetDefault("rrd.enabled", false)

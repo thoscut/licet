@@ -15,13 +15,15 @@ import (
 type AnalyticsService struct {
 	db      *sqlx.DB
 	storage *StorageService
+	dbType  string
 }
 
 // NewAnalyticsService creates a new analytics service
-func NewAnalyticsService(db *sqlx.DB, storage *StorageService) *AnalyticsService {
+func NewAnalyticsService(db *sqlx.DB, storage *StorageService, dbType string) *AnalyticsService {
 	return &AnalyticsService{
 		db:      db,
 		storage: storage,
+		dbType:  dbType,
 	}
 }
 
@@ -71,25 +73,51 @@ func (s *AnalyticsService) GetUtilizationHistory(ctx context.Context, server, fe
 	var history []models.UtilizationHistoryPoint
 	cutoff := time.Now().AddDate(0, 0, -days)
 
-	query := `
+	// Use database-specific timestamp concatenation
+	var timestampExpr string
+	switch s.dbType {
+	case "postgres", "postgresql":
+		timestampExpr = "(date || ' ' || time)::timestamp"
+	case "mysql":
+		timestampExpr = "CONCAT(date, ' ', time)"
+	default: // sqlite
+		timestampExpr = "datetime(date || ' ' || time)"
+	}
+
+	query := fmt.Sprintf(`
 		SELECT
-			datetime(date || ' ' || time) as timestamp,
+			%s as timestamp,
 			users_count
 		FROM feature_usage
 		WHERE 1=1
-	`
+	`, timestampExpr)
 
 	args := []interface{}{}
+	argNum := 1
 	if server != "" {
-		query += " AND server_hostname = ?"
+		if s.dbType == "postgres" || s.dbType == "postgresql" {
+			query += fmt.Sprintf(" AND server_hostname = $%d", argNum)
+			argNum++
+		} else {
+			query += " AND server_hostname = ?"
+		}
 		args = append(args, server)
 	}
 	if feature != "" {
-		query += " AND feature_name = ?"
+		if s.dbType == "postgres" || s.dbType == "postgresql" {
+			query += fmt.Sprintf(" AND feature_name = $%d", argNum)
+			argNum++
+		} else {
+			query += " AND feature_name = ?"
+		}
 		args = append(args, feature)
 	}
 
-	query += " AND date >= ? ORDER BY date ASC, time ASC"
+	if s.dbType == "postgres" || s.dbType == "postgresql" {
+		query += fmt.Sprintf(" AND date >= $%d ORDER BY date ASC, time ASC", argNum)
+	} else {
+		query += " AND date >= ? ORDER BY date ASC, time ASC"
+	}
 	args = append(args, cutoff.Format("2006-01-02"))
 
 	err := s.db.SelectContext(ctx, &history, query, args...)
@@ -132,16 +160,30 @@ func (s *AnalyticsService) GetUtilizationStats(ctx context.Context, server strin
 func (s *AnalyticsService) GetHeatmapData(ctx context.Context, server string, days int) ([]models.HeatmapData, error) {
 	cutoff := time.Now().AddDate(0, 0, -days)
 
-	// First, get all unique features
-	featuresQuery := `
-		SELECT DISTINCT server_hostname, feature_name
-		FROM feature_usage
-		WHERE date >= ?
-	`
+	// First, get all unique features with database-specific placeholders
+	var featuresQuery string
 	args := []interface{}{cutoff.Format("2006-01-02")}
-	if server != "" {
-		featuresQuery += " AND server_hostname = ?"
-		args = append(args, server)
+
+	if s.dbType == "postgres" || s.dbType == "postgresql" {
+		featuresQuery = `
+			SELECT DISTINCT server_hostname, feature_name
+			FROM feature_usage
+			WHERE date >= $1
+		`
+		if server != "" {
+			featuresQuery += " AND server_hostname = $2"
+			args = append(args, server)
+		}
+	} else {
+		featuresQuery = `
+			SELECT DISTINCT server_hostname, feature_name
+			FROM feature_usage
+			WHERE date >= ?
+		`
+		if server != "" {
+			featuresQuery += " AND server_hostname = ?"
+			args = append(args, server)
+		}
 	}
 
 	type featureKey struct {
@@ -153,13 +195,32 @@ func (s *AnalyticsService) GetHeatmapData(ctx context.Context, server string, da
 		return nil, err
 	}
 
-	// For each feature, get hourly usage patterns
+	// For each feature, get hourly usage patterns with database-specific hour extraction
 	var heatmapData []models.HeatmapData
 
-	for _, feature := range features {
-		hourlyQuery := `
+	// Use database-specific hour extraction
+	var hourExpr string
+	var hourlyQuery string
+	switch s.dbType {
+	case "postgres", "postgresql":
+		hourExpr = "EXTRACT(HOUR FROM time::time)::integer"
+		hourlyQuery = fmt.Sprintf(`
 			SELECT
-				CAST(strftime('%H', time) AS INTEGER) as hour,
+				%s as hour,
+				AVG(users_count) as avg_usage,
+				MAX(users_count) as peak_usage
+			FROM feature_usage
+			WHERE server_hostname = $1
+			  AND feature_name = $2
+			  AND date >= $3
+			GROUP BY hour
+			ORDER BY hour
+		`, hourExpr)
+	case "mysql":
+		hourExpr = "HOUR(time)"
+		hourlyQuery = fmt.Sprintf(`
+			SELECT
+				%s as hour,
 				AVG(users_count) as avg_usage,
 				MAX(users_count) as peak_usage
 			FROM feature_usage
@@ -168,8 +229,24 @@ func (s *AnalyticsService) GetHeatmapData(ctx context.Context, server string, da
 			  AND date >= ?
 			GROUP BY hour
 			ORDER BY hour
-		`
+		`, hourExpr)
+	default: // sqlite
+		hourExpr = "CAST(strftime('%H', time) AS INTEGER)"
+		hourlyQuery = fmt.Sprintf(`
+			SELECT
+				%s as hour,
+				AVG(users_count) as avg_usage,
+				MAX(users_count) as peak_usage
+			FROM feature_usage
+			WHERE server_hostname = ?
+			  AND feature_name = ?
+			  AND date >= ?
+			GROUP BY hour
+			ORDER BY hour
+		`, hourExpr)
+	}
 
+	for _, feature := range features {
 		var hourlyData []models.HeatmapHourly
 		err := s.db.SelectContext(ctx, &hourlyData, hourlyQuery,
 			feature.ServerHostname,

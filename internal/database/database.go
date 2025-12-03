@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
+	"github.com/golang-migrate/migrate/v4/database/mysql"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jmoiron/sqlx"
@@ -63,12 +66,27 @@ func New(cfg config.DatabaseConfig) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func RunMigrations(db *sqlx.DB) error {
+func RunMigrations(db *sqlx.DB, dbType string) error {
 	// Get the underlying *sql.DB for golang-migrate
 	sqlDB := db.DB
 
-	// Create migration driver
-	driver, err := sqlite3.WithInstance(sqlDB, &sqlite3.Config{})
+	// Create database-specific migration driver
+	var driver database.Driver
+	var driverName string
+	var err error
+
+	switch dbType {
+	case "postgres", "postgresql":
+		driver, err = postgres.WithInstance(sqlDB, &postgres.Config{})
+		driverName = "postgres"
+	case "mysql":
+		driver, err = mysql.WithInstance(sqlDB, &mysql.Config{})
+		driverName = "mysql"
+	default: // sqlite
+		driver, err = sqlite3.WithInstance(sqlDB, &sqlite3.Config{})
+		driverName = "sqlite3"
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to create migration driver: %w", err)
 	}
@@ -80,7 +98,7 @@ func RunMigrations(db *sqlx.DB) error {
 	}
 
 	// Create migrator
-	m, err := migrate.NewWithInstance("iofs", sourceDriver, "sqlite3", driver)
+	m, err := migrate.NewWithInstance("iofs", sourceDriver, driverName, driver)
 	if err != nil {
 		return fmt.Errorf("failed to create migrator: %w", err)
 	}

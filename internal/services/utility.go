@@ -112,10 +112,11 @@ func (uc *UtilityChecker) testExecutable(path string) error {
 
 	// Try with no arguments (some utilities show help)
 	cmd = exec.Command(path)
-	if err := cmd.Run(); err == nil {
+	err := cmd.Run()
+	if err == nil {
 		return nil
 	}
 
-	// If all fail, it might still work but we can't verify
-	return nil
+	// All attempts failed - return the last error
+	return err
 }
