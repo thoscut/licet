@@ -92,7 +92,7 @@ func (cw *ConfigWriter) AddServer(server config.LicenseServer) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(cw.configPath, output, 0644); err != nil {
+	if err := os.WriteFile(cw.configPath, output, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (cw *ConfigWriter) DeleteServer(hostname string) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(cw.configPath, output, 0644); err != nil {
+	if err := os.WriteFile(cw.configPath, output, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
@@ -192,7 +192,7 @@ func (cw *ConfigWriter) UpdateEmailSettings(enabled bool, from string, to []stri
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(cw.configPath, output, 0644); err != nil {
+	if err := os.WriteFile(cw.configPath, output, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
@@ -226,7 +226,7 @@ func (cw *ConfigWriter) UpdateAlertSettings(enabled bool, leadTimeDays, resendIn
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(cw.configPath, output, 0644); err != nil {
+	if err := os.WriteFile(cw.configPath, output, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

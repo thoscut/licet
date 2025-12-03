@@ -1,7 +1,9 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -64,15 +66,16 @@ func (s *LicenseService) QueryServer(hostname, serverType string) (models.Server
 
 	// Store results in database
 	if result.Error == nil && len(result.Features) > 0 {
+		ctx := context.Background()
 		log.Debugf("Storing %d features from %s to database", len(result.Features), hostname)
-		if err := s.storeFeatures(result.Features); err != nil {
+		if err := s.storeFeatures(ctx, result.Features); err != nil {
 			log.Errorf("Failed to store features: %v", err)
 		} else {
 			log.Debugf("Successfully stored features from %s", hostname)
 		}
 
 		log.Debugf("Recording usage data for %d features from %s", len(result.Features), hostname)
-		if err := s.recordUsage(result.Features); err != nil {
+		if err := s.recordUsage(ctx, result.Features); err != nil {
 			log.Errorf("Failed to record usage: %v", err)
 		} else {
 			log.Debugf("Successfully recorded usage from %s", hostname)
@@ -82,8 +85,8 @@ func (s *LicenseService) QueryServer(hostname, serverType string) (models.Server
 	return result, result.Error
 }
 
-func (s *LicenseService) storeFeatures(features []models.Feature) error {
-	tx, err := s.db.Beginx()
+func (s *LicenseService) storeFeatures(ctx context.Context, features []models.Feature) error {
+	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -96,7 +99,7 @@ func (s *LicenseService) storeFeatures(features []models.Feature) error {
 	`
 
 	for _, feature := range features {
-		_, err := tx.Exec(query,
+		_, err := tx.ExecContext(ctx, query,
 			feature.ServerHostname,
 			feature.Name,
 			feature.Version,
@@ -114,8 +117,8 @@ func (s *LicenseService) storeFeatures(features []models.Feature) error {
 	return tx.Commit()
 }
 
-func (s *LicenseService) recordUsage(features []models.Feature) error {
-	tx, err := s.db.Beginx()
+func (s *LicenseService) recordUsage(ctx context.Context, features []models.Feature) error {
+	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -132,7 +135,7 @@ func (s *LicenseService) recordUsage(features []models.Feature) error {
 	`
 
 	for _, feature := range features {
-		_, err := tx.Exec(query,
+		_, err := tx.ExecContext(ctx, query,
 			feature.ServerHostname,
 			feature.Name,
 			date,
@@ -147,15 +150,15 @@ func (s *LicenseService) recordUsage(features []models.Feature) error {
 	return tx.Commit()
 }
 
-func (s *LicenseService) GetFeatures(hostname string) ([]models.Feature, error) {
+func (s *LicenseService) GetFeatures(ctx context.Context, hostname string) ([]models.Feature, error) {
 	var features []models.Feature
 	query := `SELECT * FROM features WHERE server_hostname = ? ORDER BY name`
-	err := s.db.Select(&features, query, hostname)
+	err := s.db.SelectContext(ctx, &features, query, hostname)
 	return features, err
 }
 
 // GetFeaturesWithExpiration returns features that have expiration dates, deduplicated
-func (s *LicenseService) GetFeaturesWithExpiration(hostname string) ([]models.Feature, error) {
+func (s *LicenseService) GetFeaturesWithExpiration(ctx context.Context, hostname string) ([]models.Feature, error) {
 	var features []models.Feature
 	query := `
 		SELECT f.id, f.server_hostname, f.name, f.version, f.vendor_daemon,
@@ -170,11 +173,11 @@ func (s *LicenseService) GetFeaturesWithExpiration(hostname string) ([]models.Fe
 		) latest ON f.id = latest.max_id
 		ORDER BY f.expiration_date ASC, f.name ASC
 	`
-	err := s.db.Select(&features, query, hostname)
+	err := s.db.SelectContext(ctx, &features, query, hostname)
 	return features, err
 }
 
-func (s *LicenseService) GetExpiringFeatures(days int) ([]models.Feature, error) {
+func (s *LicenseService) GetExpiringFeatures(ctx context.Context, days int) ([]models.Feature, error) {
 	var features []models.Feature
 	cutoff := time.Now().AddDate(0, 0, days)
 
@@ -183,11 +186,11 @@ func (s *LicenseService) GetExpiringFeatures(days int) ([]models.Feature, error)
 		WHERE expiration_date <= ? AND expiration_date > ?
 		ORDER BY expiration_date ASC
 	`
-	err := s.db.Select(&features, query, cutoff, time.Now())
+	err := s.db.SelectContext(ctx, &features, query, cutoff, time.Now())
 	return features, err
 }
 
-func (s *LicenseService) GetFeatureUsageHistory(hostname, featureName string, days int) ([]models.FeatureUsage, error) {
+func (s *LicenseService) GetFeatureUsageHistory(ctx context.Context, hostname, featureName string, days int) ([]models.FeatureUsage, error) {
 	var usage []models.FeatureUsage
 	cutoff := time.Now().AddDate(0, 0, -days)
 
@@ -196,12 +199,12 @@ func (s *LicenseService) GetFeatureUsageHistory(hostname, featureName string, da
 		WHERE server_hostname = ? AND feature_name = ? AND date >= ?
 		ORDER BY date DESC, time DESC
 	`
-	err := s.db.Select(&usage, query, hostname, featureName, cutoff)
+	err := s.db.SelectContext(ctx, &usage, query, hostname, featureName, cutoff)
 	return usage, err
 }
 
 // GetCurrentUtilization returns current utilization for all features across all servers
-func (s *LicenseService) GetCurrentUtilization(serverFilter string) ([]models.UtilizationData, error) {
+func (s *LicenseService) GetCurrentUtilization(ctx context.Context, serverFilter string) ([]models.UtilizationData, error) {
 	var utilization []models.UtilizationData
 
 	query := `
@@ -237,12 +240,12 @@ func (s *LicenseService) GetCurrentUtilization(serverFilter string) ([]models.Ut
 
 	query += " ORDER BY utilization_pct DESC, feature_name ASC"
 
-	err := s.db.Select(&utilization, query, args...)
+	err := s.db.SelectContext(ctx, &utilization, query, args...)
 	return utilization, err
 }
 
 // GetUtilizationHistory returns time-series usage data for charting
-func (s *LicenseService) GetUtilizationHistory(server, feature string, days int) ([]models.UtilizationHistoryPoint, error) {
+func (s *LicenseService) GetUtilizationHistory(ctx context.Context, server, feature string, days int) ([]models.UtilizationHistoryPoint, error) {
 	var history []models.UtilizationHistoryPoint
 	cutoff := time.Now().AddDate(0, 0, -days)
 
@@ -267,12 +270,12 @@ func (s *LicenseService) GetUtilizationHistory(server, feature string, days int)
 	query += " AND date >= ? ORDER BY date ASC, time ASC"
 	args = append(args, cutoff.Format("2006-01-02"))
 
-	err := s.db.Select(&history, query, args...)
+	err := s.db.SelectContext(ctx, &history, query, args...)
 	return history, err
 }
 
 // GetUtilizationStats returns aggregated statistics
-func (s *LicenseService) GetUtilizationStats(server string, days int) ([]models.UtilizationStats, error) {
+func (s *LicenseService) GetUtilizationStats(ctx context.Context, server string, days int) ([]models.UtilizationStats, error) {
 	var stats []models.UtilizationStats
 	cutoff := time.Now().AddDate(0, 0, -days)
 
@@ -299,12 +302,12 @@ func (s *LicenseService) GetUtilizationStats(server string, days int) ([]models.
 
 	query += " GROUP BY fu.server_hostname, fu.feature_name ORDER BY avg_usage DESC"
 
-	err := s.db.Select(&stats, query, args...)
+	err := s.db.SelectContext(ctx, &stats, query, args...)
 	return stats, err
 }
 
 // GetHeatmapData returns hour-of-day usage patterns for heatmap visualization
-func (s *LicenseService) GetHeatmapData(server string, days int) ([]models.HeatmapData, error) {
+func (s *LicenseService) GetHeatmapData(ctx context.Context, server string, days int) ([]models.HeatmapData, error) {
 	cutoff := time.Now().AddDate(0, 0, -days)
 
 	// First, get all unique features
@@ -324,7 +327,7 @@ func (s *LicenseService) GetHeatmapData(server string, days int) ([]models.Heatm
 		FeatureName    string `db:"feature_name"`
 	}
 	var features []featureKey
-	if err := s.db.Select(&features, featuresQuery, args...); err != nil {
+	if err := s.db.SelectContext(ctx, &features, featuresQuery, args...); err != nil {
 		return nil, err
 	}
 
@@ -346,7 +349,7 @@ func (s *LicenseService) GetHeatmapData(server string, days int) ([]models.Heatm
 		`
 
 		var hourlyData []models.HeatmapHourly
-		err := s.db.Select(&hourlyData, hourlyQuery,
+		err := s.db.SelectContext(ctx, &hourlyData, hourlyQuery,
 			feature.ServerHostname,
 			feature.FeatureName,
 			cutoff.Format("2006-01-02"))
@@ -387,9 +390,9 @@ func (s *LicenseService) GetHeatmapData(server string, days int) ([]models.Heatm
 }
 
 // GetPredictiveAnalytics performs trend analysis and anomaly detection for a feature
-func (s *LicenseService) GetPredictiveAnalytics(server, feature string, days int) (*models.PredictiveAnalytics, error) {
+func (s *LicenseService) GetPredictiveAnalytics(ctx context.Context, server, feature string, days int) (*models.PredictiveAnalytics, error) {
 	// Get historical usage data
-	usageHistory, err := s.GetFeatureUsageHistory(server, feature, days)
+	usageHistory, err := s.GetFeatureUsageHistory(ctx, server, feature, days)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +404,7 @@ func (s *LicenseService) GetPredictiveAnalytics(server, feature string, days int
 	// Get current feature info
 	var currentFeature models.Feature
 	query := `SELECT * FROM features WHERE server_hostname = ? AND name = ? LIMIT 1`
-	err = s.db.Get(&currentFeature, query, server, feature)
+	err = s.db.GetContext(ctx, &currentFeature, query, server, feature)
 	if err != nil {
 		return nil, err
 	}
@@ -534,10 +537,7 @@ func calculateStats(values []float64) (mean, stdDev float64) {
 		variance += diff * diff
 	}
 	variance /= n
-	stdDev = variance
-	if stdDev > 0 {
-		stdDev = variance // Note: Using variance for simplicity, real stdDev would use math.Sqrt
-	}
+	stdDev = math.Sqrt(variance)
 
 	return mean, stdDev
 }

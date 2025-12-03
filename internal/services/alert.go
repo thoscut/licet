@@ -1,14 +1,16 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
+
+	mail "github.com/wneessen/go-mail"
 
 	"github.com/jmoiron/sqlx"
 	log "github.com/sirupsen/logrus"
 	"github.com/thoscut/licet/internal/config"
 	"github.com/thoscut/licet/internal/models"
-	"gopkg.in/gomail.v2"
 )
 
 type AlertService struct {
@@ -23,13 +25,13 @@ func NewAlertService(db *sqlx.DB, cfg *config.Config) *AlertService {
 	}
 }
 
-func (s *AlertService) CreateAlert(alert *models.Alert) error {
+func (s *AlertService) CreateAlert(ctx context.Context, alert *models.Alert) error {
 	query := `
 		INSERT INTO alerts (server_hostname, feature_name, alert_type, message, severity, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 
-	_, err := s.db.Exec(query,
+	_, err := s.db.ExecContext(ctx, query,
 		alert.ServerHostname,
 		alert.FeatureName,
 		alert.AlertType,
@@ -41,25 +43,25 @@ func (s *AlertService) CreateAlert(alert *models.Alert) error {
 	return err
 }
 
-func (s *AlertService) GetUnsentAlerts() ([]models.Alert, error) {
+func (s *AlertService) GetUnsentAlerts(ctx context.Context) ([]models.Alert, error) {
 	var alerts []models.Alert
 	query := `SELECT * FROM alerts WHERE sent = 0 ORDER BY created_at ASC`
-	err := s.db.Select(&alerts, query)
+	err := s.db.SelectContext(ctx, &alerts, query)
 	return alerts, err
 }
 
 // GetActiveAlerts returns all alerts from the last 30 days, both sent and unsent
-func (s *AlertService) GetActiveAlerts() ([]models.Alert, error) {
+func (s *AlertService) GetActiveAlerts(ctx context.Context) ([]models.Alert, error) {
 	var alerts []models.Alert
 	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
 	query := `SELECT * FROM alerts WHERE created_at > ? ORDER BY created_at DESC`
-	err := s.db.Select(&alerts, query, thirtyDaysAgo)
+	err := s.db.SelectContext(ctx, &alerts, query, thirtyDaysAgo)
 	return alerts, err
 }
 
-func (s *AlertService) MarkAlertSent(alertID int64) error {
+func (s *AlertService) MarkAlertSent(ctx context.Context, alertID int64) error {
 	query := `UPDATE alerts SET sent = 1, sent_at = ? WHERE id = ?`
-	_, err := s.db.Exec(query, time.Now(), alertID)
+	_, err := s.db.ExecContext(ctx, query, time.Now(), alertID)
 	return err
 }
 
@@ -69,7 +71,8 @@ func (s *AlertService) SendAlerts() error {
 		return nil
 	}
 
-	alerts, err := s.GetUnsentAlerts()
+	ctx := context.Background()
+	alerts, err := s.GetUnsentAlerts(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get unsent alerts: %w", err)
 	}
@@ -86,7 +89,7 @@ func (s *AlertService) SendAlerts() error {
 			continue
 		}
 
-		if err := s.MarkAlertSent(alert.ID); err != nil {
+		if err := s.MarkAlertSent(ctx, alert.ID); err != nil {
 			log.Errorf("Failed to mark alert %d as sent: %v", alert.ID, err)
 		}
 	}
@@ -95,8 +98,13 @@ func (s *AlertService) SendAlerts() error {
 }
 
 func (s *AlertService) sendAlert(alert *models.Alert) error {
-	m := gomail.NewMessage()
-	m.SetHeader("From", s.cfg.Email.From)
+	// Create new message
+	m := mail.NewMsg()
+
+	// Set From header
+	if err := m.From(s.cfg.Email.From); err != nil {
+		return fmt.Errorf("failed to set From header: %w", err)
+	}
 
 	// Determine recipients based on alert severity
 	recipients := s.cfg.Email.To
@@ -104,11 +112,16 @@ func (s *AlertService) sendAlert(alert *models.Alert) error {
 		recipients = append(recipients, s.cfg.Email.Alerts...)
 	}
 
-	m.SetHeader("To", recipients...)
+	// Set To header
+	if err := m.To(recipients...); err != nil {
+		return fmt.Errorf("failed to set To header: %w", err)
+	}
 
+	// Set subject
 	subject := fmt.Sprintf("[%s] License Alert: %s", alert.Severity, alert.AlertType)
-	m.SetHeader("Subject", subject)
+	m.Subject(subject)
 
+	// Set body
 	body := fmt.Sprintf(`
 License Alert
 
@@ -132,16 +145,21 @@ Licet (Go Edition)
 		alert.Message,
 	)
 
-	m.SetBody("text/plain", body)
+	m.SetBodyString(mail.TypeTextPlain, body)
 
-	d := gomail.NewDialer(
-		s.cfg.Email.SMTPHost,
-		s.cfg.Email.SMTPPort,
-		s.cfg.Email.Username,
-		s.cfg.Email.Password,
+	// Create client
+	client, err := mail.NewClient(s.cfg.Email.SMTPHost,
+		mail.WithPort(s.cfg.Email.SMTPPort),
+		mail.WithSMTPAuth(mail.SMTPAuthPlain),
+		mail.WithUsername(s.cfg.Email.Username),
+		mail.WithPassword(s.cfg.Email.Password),
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create mail client: %w", err)
+	}
 
-	if err := d.DialAndSend(m); err != nil {
+	// Send the mail
+	if err := client.DialAndSend(m); err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
 	}
 

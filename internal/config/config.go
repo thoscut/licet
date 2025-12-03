@@ -18,11 +18,12 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port               int    `mapstructure:"port"`
-	Host               string `mapstructure:"host"`
-	SettingsEnabled    bool   `mapstructure:"settings_enabled"`
-	UtilizationEnabled bool   `mapstructure:"utilization_enabled"`
-	StatisticsEnabled  bool   `mapstructure:"statistics_enabled"`
+	Port               int      `mapstructure:"port"`
+	Host               string   `mapstructure:"host"`
+	SettingsEnabled    bool     `mapstructure:"settings_enabled"`
+	UtilizationEnabled bool     `mapstructure:"utilization_enabled"`
+	StatisticsEnabled  bool     `mapstructure:"statistics_enabled"`
+	CORSOrigins        []string `mapstructure:"cors_origins"`
 }
 
 type DatabaseConfig struct {
@@ -84,6 +85,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("server.settings_enabled", true)
 	viper.SetDefault("server.utilization_enabled", true)
 	viper.SetDefault("server.statistics_enabled", true)
+	viper.SetDefault("server.cors_origins", []string{"http://localhost:8080"})
 	viper.SetDefault("database.type", "sqlite")
 	viper.SetDefault("database.database", "licet.db")
 	viper.SetDefault("database.sslmode", "disable")

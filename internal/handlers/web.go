@@ -47,7 +47,21 @@ func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
 
 	serversWithStatus := make([]ServerWithStatus, 0, len(servers))
 	for _, server := range servers {
-		result, _ := h.licenseService.QueryServer(server.Hostname, server.Type)
+		result, err := h.licenseService.QueryServer(server.Hostname, server.Type)
+		if err != nil {
+			log.WithError(err).Warnf("Failed to query server %s", server.Hostname)
+			// Still add the server with error status
+			serversWithStatus = append(serversWithStatus, ServerWithStatus{
+				Server: server,
+				Status: models.ServerStatus{
+					Hostname: server.Hostname,
+					Service:  "down",
+					Version:  "",
+					Message:  err.Error(),
+				},
+			})
+			continue
+		}
 		serversWithStatus = append(serversWithStatus, ServerWithStatus{
 			Server: server,
 			Status: result.Status,
@@ -96,7 +110,7 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 	result, err := h.licenseService.QueryServer(hostname, serverType)
 	if err != nil {
 		// Fall back to database features if live query fails
-		features, dbErr := h.licenseService.GetFeatures(hostname)
+		features, dbErr := h.licenseService.GetFeatures(r.Context(), hostname)
 		if dbErr != nil {
 			http.Error(w, "Failed to get server data", http.StatusInternalServerError)
 			return
@@ -138,7 +152,7 @@ func (h *WebHandler) Expiration(w http.ResponseWriter, r *http.Request) {
 	hostname := chi.URLParam(r, "server")
 
 	// Use the specialized method that filters for features with expiration dates
-	features, err := h.licenseService.GetFeaturesWithExpiration(hostname)
+	features, err := h.licenseService.GetFeaturesWithExpiration(r.Context(), hostname)
 	if err != nil {
 		http.Error(w, "Failed to get features", http.StatusInternalServerError)
 		return
@@ -253,7 +267,7 @@ func (h *WebHandler) Denials(w http.ResponseWriter, r *http.Request) {
 
 func (h *WebHandler) Alerts(w http.ResponseWriter, r *http.Request) {
 	// Get all active alerts from the last 30 days (both sent and unsent)
-	alerts, err := h.alertService.GetActiveAlerts()
+	alerts, err := h.alertService.GetActiveAlerts(r.Context())
 	if err != nil {
 		http.Error(w, "Failed to get alerts", http.StatusInternalServerError)
 		return

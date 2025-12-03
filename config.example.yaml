@@ -6,6 +6,9 @@ server:
   settings_enabled: true  # Set to false to disable access to the settings page
   utilization_enabled: true  # Set to false to disable access to the utilization pages
   statistics_enabled: true  # Set to false to disable access to the statistics page
+  cors_origins:  # Allowed origins for CORS (leave empty or set to ["*"] for wildcard - NOT RECOMMENDED)
+    - "http://localhost:8080"
+    - "https://yourdomain.com"
 
 database:
   # Options: sqlite, postgres, mysql

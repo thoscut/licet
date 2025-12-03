@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -60,7 +61,8 @@ func (s *CollectorService) CollectServer(server models.LicenseServer) error {
 func (s *CollectorService) CheckExpirations() error {
 	log.Info("Checking for expiring licenses")
 
-	features, err := s.licenseService.GetExpiringFeatures(s.cfg.Alerts.LeadTimeDays)
+	ctx := context.Background()
+	features, err := s.licenseService.GetExpiringFeatures(ctx, s.cfg.Alerts.LeadTimeDays)
 	if err != nil {
 		return err
 	}
@@ -100,7 +102,7 @@ func (s *CollectorService) CheckExpirations() error {
 
 		// Check throttle before creating alert
 		if !alertService.CheckThrottle(feature.ServerHostname, "expiration") {
-			if err := alertService.CreateAlert(alert); err != nil {
+			if err := alertService.CreateAlert(ctx, alert); err != nil {
 				log.Errorf("Failed to create alert: %v", err)
 			}
 		}

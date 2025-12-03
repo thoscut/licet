@@ -48,7 +48,7 @@ func GetServerFeatures(licenseService *services.LicenseService) http.HandlerFunc
 	return func(w http.ResponseWriter, r *http.Request) {
 		server := chi.URLParam(r, "server")
 
-		features, err := licenseService.GetFeatures(server)
+		features, err := licenseService.GetFeatures(r.Context(), server)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -96,7 +96,7 @@ func GetFeatureUsage(licenseService *services.LicenseService) http.HandlerFunc {
 			}
 		}
 
-		usage, err := licenseService.GetFeatureUsageHistory(server, feature, days)
+		usage, err := licenseService.GetFeatureUsageHistory(r.Context(), server, feature, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -111,7 +111,7 @@ func GetFeatureUsage(licenseService *services.LicenseService) http.HandlerFunc {
 
 func GetAlerts(alertService *services.AlertService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		alerts, err := alertService.GetUnsentAlerts()
+		alerts, err := alertService.GetUnsentAlerts(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -138,7 +138,7 @@ func GetCurrentUtilization(licenseService *services.LicenseService) http.Handler
 	return func(w http.ResponseWriter, r *http.Request) {
 		serverFilter := r.URL.Query().Get("server")
 
-		utilization, err := licenseService.GetCurrentUtilization(serverFilter)
+		utilization, err := licenseService.GetCurrentUtilization(r.Context(), serverFilter)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -171,7 +171,7 @@ func GetUtilizationHistory(licenseService *services.LicenseService) http.Handler
 			days = 365
 		}
 
-		history, err := licenseService.GetUtilizationHistory(server, feature, days)
+		history, err := licenseService.GetUtilizationHistory(r.Context(), server, feature, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -197,7 +197,7 @@ func GetUtilizationStats(licenseService *services.LicenseService) http.HandlerFu
 			}
 		}
 
-		stats, err := licenseService.GetUtilizationStats(server, days)
+		stats, err := licenseService.GetUtilizationStats(r.Context(), server, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -223,7 +223,7 @@ func GetUtilizationHeatmap(licenseService *services.LicenseService) http.Handler
 			}
 		}
 
-		heatmap, err := licenseService.GetHeatmapData(server, days)
+		heatmap, err := licenseService.GetHeatmapData(r.Context(), server, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -255,7 +255,7 @@ func GetPredictiveAnalytics(licenseService *services.LicenseService) http.Handle
 			}
 		}
 
-		analytics, err := licenseService.GetPredictiveAnalytics(server, feature, days)
+		analytics, err := licenseService.GetPredictiveAnalytics(r.Context(), server, feature, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
