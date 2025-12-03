@@ -29,15 +29,10 @@ func AddServer(cfg *config.Config) http.HandlerFunc {
 			return
 		}
 
-		// Validate server type
+		// Validate server type (only supported types)
 		validTypes := map[string]bool{
 			"flexlm": true,
 			"rlm":    true,
-			"spm":    true,
-			"sesi":   true,
-			"rvl":    true,
-			"tweak":  true,
-			"pixar":  true,
 		}
 		if !validTypes[server.Type] {
 			http.Error(w, "Invalid server type", http.StatusBadRequest)
