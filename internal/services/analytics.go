@@ -8,203 +8,25 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	log "github.com/sirupsen/logrus"
-	"github.com/thoscut/licet/internal/config"
 	"github.com/thoscut/licet/internal/models"
-	"github.com/thoscut/licet/internal/parsers"
 )
 
-type LicenseService struct {
-	db            *sqlx.DB
-	cfg           *config.Config
-	parserFactory *parsers.ParserFactory
+// AnalyticsService handles utilization analytics and predictive operations
+type AnalyticsService struct {
+	db      *sqlx.DB
+	storage *StorageService
 }
 
-func NewLicenseService(db *sqlx.DB, cfg *config.Config) *LicenseService {
-	// Use cross-platform binary path detection
-	binPaths := GetDefaultBinaryPaths()
-
-	return &LicenseService{
-		db:            db,
-		cfg:           cfg,
-		parserFactory: parsers.NewParserFactory(binPaths),
+// NewAnalyticsService creates a new analytics service
+func NewAnalyticsService(db *sqlx.DB, storage *StorageService) *AnalyticsService {
+	return &AnalyticsService{
+		db:      db,
+		storage: storage,
 	}
-}
-
-func (s *LicenseService) GetAllServers() ([]models.LicenseServer, error) {
-	var servers []models.LicenseServer
-
-	// Return configured servers from config
-	for _, srv := range s.cfg.Servers {
-		servers = append(servers, models.LicenseServer{
-			Hostname:    srv.Hostname,
-			Description: srv.Description,
-			Type:        srv.Type,
-			CactiID:     srv.CactiID,
-			WebUI:       srv.WebUI,
-		})
-	}
-
-	return servers, nil
-}
-
-func (s *LicenseService) QueryServer(hostname, serverType string) (models.ServerQueryResult, error) {
-	parser, err := s.parserFactory.GetParser(serverType)
-	if err != nil {
-		return models.ServerQueryResult{}, err
-	}
-
-	log.Infof("Querying %s server: %s", serverType, hostname)
-	result := parser.Query(hostname)
-
-	// Log query results at debug level
-	if result.Error != nil {
-		log.Debugf("Query error for %s: %v", hostname, result.Error)
-	} else {
-		log.Debugf("Query successful for %s: service=%s, features=%d, users=%d",
-			hostname, result.Status.Service, len(result.Features), len(result.Users))
-	}
-
-	// Store results in database
-	if result.Error == nil && len(result.Features) > 0 {
-		ctx := context.Background()
-		log.Debugf("Storing %d features from %s to database", len(result.Features), hostname)
-		if err := s.storeFeatures(ctx, result.Features); err != nil {
-			log.Errorf("Failed to store features: %v", err)
-		} else {
-			log.Debugf("Successfully stored features from %s", hostname)
-		}
-
-		log.Debugf("Recording usage data for %d features from %s", len(result.Features), hostname)
-		if err := s.recordUsage(ctx, result.Features); err != nil {
-			log.Errorf("Failed to record usage: %v", err)
-		} else {
-			log.Debugf("Successfully recorded usage from %s", hostname)
-		}
-	}
-
-	return result, result.Error
-}
-
-func (s *LicenseService) storeFeatures(ctx context.Context, features []models.Feature) error {
-	tx, err := s.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	query := `
-		INSERT OR REPLACE INTO features
-		(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	for _, feature := range features {
-		_, err := tx.ExecContext(ctx, query,
-			feature.ServerHostname,
-			feature.Name,
-			feature.Version,
-			feature.VendorDaemon,
-			feature.TotalLicenses,
-			feature.UsedLicenses,
-			feature.ExpirationDate,
-			time.Now(),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to insert feature %s: %w", feature.Name, err)
-		}
-	}
-
-	return tx.Commit()
-}
-
-func (s *LicenseService) recordUsage(ctx context.Context, features []models.Feature) error {
-	tx, err := s.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	now := time.Now()
-	date := now.Format("2006-01-02")
-	timeStr := now.Format("15:04:00")
-
-	query := `
-		INSERT OR IGNORE INTO feature_usage
-		(server_hostname, feature_name, date, time, users_count)
-		VALUES (?, ?, ?, ?, ?)
-	`
-
-	for _, feature := range features {
-		_, err := tx.ExecContext(ctx, query,
-			feature.ServerHostname,
-			feature.Name,
-			date,
-			timeStr,
-			feature.UsedLicenses,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to record usage for %s: %w", feature.Name, err)
-		}
-	}
-
-	return tx.Commit()
-}
-
-func (s *LicenseService) GetFeatures(ctx context.Context, hostname string) ([]models.Feature, error) {
-	var features []models.Feature
-	query := `SELECT * FROM features WHERE server_hostname = ? ORDER BY name`
-	err := s.db.SelectContext(ctx, &features, query, hostname)
-	return features, err
-}
-
-// GetFeaturesWithExpiration returns features that have expiration dates, deduplicated
-func (s *LicenseService) GetFeaturesWithExpiration(ctx context.Context, hostname string) ([]models.Feature, error) {
-	var features []models.Feature
-	query := `
-		SELECT f.id, f.server_hostname, f.name, f.version, f.vendor_daemon,
-		       f.total_licenses, f.used_licenses, f.expiration_date, f.last_updated
-		FROM features f
-		INNER JOIN (
-			SELECT server_hostname, name, version, expiration_date, MAX(id) as max_id
-			FROM features
-			WHERE server_hostname = ?
-			  AND expiration_date IS NOT NULL
-			GROUP BY server_hostname, name, version, expiration_date
-		) latest ON f.id = latest.max_id
-		ORDER BY f.expiration_date ASC, f.name ASC
-	`
-	err := s.db.SelectContext(ctx, &features, query, hostname)
-	return features, err
-}
-
-func (s *LicenseService) GetExpiringFeatures(ctx context.Context, days int) ([]models.Feature, error) {
-	var features []models.Feature
-	cutoff := time.Now().AddDate(0, 0, days)
-
-	query := `
-		SELECT * FROM features
-		WHERE expiration_date <= ? AND expiration_date > ?
-		ORDER BY expiration_date ASC
-	`
-	err := s.db.SelectContext(ctx, &features, query, cutoff, time.Now())
-	return features, err
-}
-
-func (s *LicenseService) GetFeatureUsageHistory(ctx context.Context, hostname, featureName string, days int) ([]models.FeatureUsage, error) {
-	var usage []models.FeatureUsage
-	cutoff := time.Now().AddDate(0, 0, -days)
-
-	query := `
-		SELECT * FROM feature_usage
-		WHERE server_hostname = ? AND feature_name = ? AND date >= ?
-		ORDER BY date DESC, time DESC
-	`
-	err := s.db.SelectContext(ctx, &usage, query, hostname, featureName, cutoff)
-	return usage, err
 }
 
 // GetCurrentUtilization returns current utilization for all features across all servers
-func (s *LicenseService) GetCurrentUtilization(ctx context.Context, serverFilter string) ([]models.UtilizationData, error) {
+func (s *AnalyticsService) GetCurrentUtilization(ctx context.Context, serverFilter string) ([]models.UtilizationData, error) {
 	var utilization []models.UtilizationData
 
 	query := `
@@ -245,7 +67,7 @@ func (s *LicenseService) GetCurrentUtilization(ctx context.Context, serverFilter
 }
 
 // GetUtilizationHistory returns time-series usage data for charting
-func (s *LicenseService) GetUtilizationHistory(ctx context.Context, server, feature string, days int) ([]models.UtilizationHistoryPoint, error) {
+func (s *AnalyticsService) GetUtilizationHistory(ctx context.Context, server, feature string, days int) ([]models.UtilizationHistoryPoint, error) {
 	var history []models.UtilizationHistoryPoint
 	cutoff := time.Now().AddDate(0, 0, -days)
 
@@ -275,7 +97,7 @@ func (s *LicenseService) GetUtilizationHistory(ctx context.Context, server, feat
 }
 
 // GetUtilizationStats returns aggregated statistics
-func (s *LicenseService) GetUtilizationStats(ctx context.Context, server string, days int) ([]models.UtilizationStats, error) {
+func (s *AnalyticsService) GetUtilizationStats(ctx context.Context, server string, days int) ([]models.UtilizationStats, error) {
 	var stats []models.UtilizationStats
 	cutoff := time.Now().AddDate(0, 0, -days)
 
@@ -307,7 +129,7 @@ func (s *LicenseService) GetUtilizationStats(ctx context.Context, server string,
 }
 
 // GetHeatmapData returns hour-of-day usage patterns for heatmap visualization
-func (s *LicenseService) GetHeatmapData(ctx context.Context, server string, days int) ([]models.HeatmapData, error) {
+func (s *AnalyticsService) GetHeatmapData(ctx context.Context, server string, days int) ([]models.HeatmapData, error) {
 	cutoff := time.Now().AddDate(0, 0, -days)
 
 	// First, get all unique features
@@ -390,9 +212,9 @@ func (s *LicenseService) GetHeatmapData(ctx context.Context, server string, days
 }
 
 // GetPredictiveAnalytics performs trend analysis and anomaly detection for a feature
-func (s *LicenseService) GetPredictiveAnalytics(ctx context.Context, server, feature string, days int) (*models.PredictiveAnalytics, error) {
+func (s *AnalyticsService) GetPredictiveAnalytics(ctx context.Context, server, feature string, days int) (*models.PredictiveAnalytics, error) {
 	// Get historical usage data
-	usageHistory, err := s.GetFeatureUsageHistory(ctx, server, feature, days)
+	usageHistory, err := s.storage.GetFeatureUsageHistory(ctx, server, feature, days)
 	if err != nil {
 		return nil, err
 	}

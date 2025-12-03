@@ -23,11 +23,10 @@ func TestGetAllServers(t *testing.T) {
 		},
 	}
 
-	service := &LicenseService{
-		cfg: cfg,
-	}
+	// Create QueryService with nil storage (we're not testing storage operations)
+	query := NewQueryService(cfg, nil)
 
-	servers, err := service.GetAllServers()
+	servers, err := query.GetAllServers()
 	if err != nil {
 		t.Fatalf("GetAllServers failed: %v", err)
 	}
@@ -54,11 +53,10 @@ func TestGetAllServers_Empty(t *testing.T) {
 		Servers: []config.LicenseServer{},
 	}
 
-	service := &LicenseService{
-		cfg: cfg,
-	}
+	// Create QueryService with nil storage
+	query := NewQueryService(cfg, nil)
 
-	servers, err := service.GetAllServers()
+	servers, err := query.GetAllServers()
 	if err != nil {
 		t.Fatalf("GetAllServers failed: %v", err)
 	}
