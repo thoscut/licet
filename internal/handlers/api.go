@@ -124,11 +124,12 @@ func GetAlerts(alertService *services.AlertService) http.HandlerFunc {
 	}
 }
 
-func Health() http.HandlerFunc {
+func Health(version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status": "ok",
+			"status":  "ok",
+			"version": version,
 		})
 	}
 }

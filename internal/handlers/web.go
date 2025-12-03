@@ -18,9 +18,10 @@ type WebHandler struct {
 	alertService   *services.AlertService
 	cfg            *config.Config
 	templates      *template.Template
+	version        string
 }
 
-func NewWebHandler(licenseService *services.LicenseService, alertService *services.AlertService, cfg *config.Config) *WebHandler {
+func NewWebHandler(licenseService *services.LicenseService, alertService *services.AlertService, cfg *config.Config, version string) *WebHandler {
 	// Load templates from embedded filesystem via web package
 	tmpl := web.LoadTemplates()
 
@@ -29,6 +30,7 @@ func NewWebHandler(licenseService *services.LicenseService, alertService *servic
 		alertService:   alertService,
 		cfg:            cfg,
 		templates:      tmpl,
+		version:        version,
 	}
 }
 
@@ -74,6 +76,7 @@ func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "index.html", data); err != nil {
@@ -125,6 +128,7 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 			"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 			"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 			"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+			"Version":            h.version,
 		}
 
 		if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
@@ -141,6 +145,7 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
@@ -165,6 +170,7 @@ func (h *WebHandler) Expiration(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "expiration.html", data); err != nil {
@@ -184,6 +190,7 @@ func (h *WebHandler) Utilization(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "utilization_overview.html", data); err != nil {
@@ -204,6 +211,7 @@ func (h *WebHandler) UtilizationTrends(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "utilization_trends.html", data); err != nil {
@@ -224,6 +232,7 @@ func (h *WebHandler) UtilizationAnalytics(w http.ResponseWriter, r *http.Request
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "utilization_analytics.html", data); err != nil {
@@ -244,6 +253,7 @@ func (h *WebHandler) UtilizationStats(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "utilization_stats.html", data); err != nil {
@@ -258,6 +268,7 @@ func (h *WebHandler) Denials(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "denials.html", data); err != nil {
@@ -279,6 +290,7 @@ func (h *WebHandler) Alerts(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "alerts.html", data); err != nil {
@@ -315,6 +327,7 @@ func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "settings.html", data); err != nil {
@@ -334,6 +347,7 @@ func (h *WebHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
 		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
 		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "statistics.html", data); err != nil {
