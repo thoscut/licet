@@ -4,15 +4,17 @@ A modern license server monitoring application providing real-time tracking, his
 
 ## Features
 
-- **Multi-Server Support**: Monitor FlexLM, RLM, SPM, SESI, Tweak, Pixar, and RVL license servers
+- **Multi-Server Support**: Monitor FlexLM and RLM license servers (SPM, SESI planned)
 - **Real-time Monitoring**: Web dashboard showing license server status, usage, and users
 - **Historical Tracking**: Store and visualize license usage over time
+- **Utilization Analytics**: Usage trends, heatmaps, and predictive analytics
 - **Expiration Alerts**: Email notifications for expiring licenses
 - **RESTful API**: JSON API for integration with other systems
-- **Modern Web UI**: Responsive interface built with Bootstrap
+- **Modern Web UI**: Responsive interface built with Bootstrap 5
 - **Background Workers**: Automated data collection via cron-like scheduler
 - **Multiple Databases**: Support for SQLite, PostgreSQL, and MySQL
 - **Secure**: No SQL injection, proper input validation, prepared statements
+- **Build-time Versioning**: Version tagging system for releases
 
 ## Quick Start
 
@@ -63,13 +65,21 @@ docker run -d \
 Edit `config.yaml` to configure your license servers:
 
 ```yaml
+server:
+  port: 8080
+  settings_enabled: true      # Enable/disable settings page
+  utilization_enabled: true   # Enable/disable utilization pages
+  statistics_enabled: true    # Enable/disable statistics page
+  cors_origins:               # Allowed origins for CORS
+    - "http://localhost:8080"
+
 servers:
   - hostname: "27000@flexlm.example.com"
     description: "Production FlexLM Server"
     type: "flexlm"
 ```
 
-See `config.example.yaml` for all available options.
+See `config.example.yaml` for all available options including database, email, and alert configuration.
 
 ### Logging
 
@@ -128,21 +138,47 @@ LICET_LOGGING_LEVEL=debug ./licet
 
 ### REST API
 
+#### Server Operations
 - `GET /api/v1/servers` - List all configured servers
+- `POST /api/v1/servers` - Add a new server
+- `DELETE /api/v1/servers` - Remove a server
+- `POST /api/v1/servers/test` - Test server connection
 - `GET /api/v1/servers/{server}/status` - Get server status
 - `GET /api/v1/servers/{server}/features` - List features
 - `GET /api/v1/servers/{server}/users` - List current users
+
+#### Feature Operations
 - `GET /api/v1/features/{feature}/usage` - Get usage history
+
+#### Utilization & Analytics
+- `GET /api/v1/utilization/current` - Get current utilization for all features
+- `GET /api/v1/utilization/history` - Get time-series usage data
+- `GET /api/v1/utilization/stats` - Get aggregated statistics
+- `GET /api/v1/utilization/heatmap` - Get hour-of-day usage patterns
+- `GET /api/v1/utilization/predictions` - Get predictive analytics
+
+#### Alerts & Settings
 - `GET /api/v1/alerts` - List active alerts
+- `GET /api/v1/utilities/check` - Check license utility availability
+- `POST /api/v1/settings/email` - Update email settings
+- `POST /api/v1/settings/alerts` - Update alert settings
+
+#### System
 - `GET /api/v1/health` - Health check
 
 ### Web UI
 
-- `/` - Dashboard
-- `/details/{server}` - Server details
+- `/` - Dashboard (server status overview)
+- `/details/{server}` - Server details with features and users
 - `/expiration/{server}` - License expiration dates
-- `/utilization` - Usage graphs
+- `/utilization` - License utilization overview
+- `/utilization/trends` - Usage trends over time
+- `/utilization/analytics` - Predictive analytics
+- `/utilization/stats` - Detailed statistics
+- `/statistics` - Statistics dashboard
+- `/denials` - License denial events
 - `/alerts` - Active alerts
+- `/settings` - Server configuration (when enabled)
 
 ## Architecture
 
@@ -153,28 +189,33 @@ LICET_LOGGING_LEVEL=debug ./licet
 ├── cmd/
 │   └── server/          # Main application entry point
 ├── internal/
-│   ├── config/          # Configuration management
-│   ├── database/        # Database layer
+│   ├── config/          # Configuration management (Viper)
+│   ├── database/        # Database layer (sqlx)
 │   ├── handlers/        # HTTP handlers (web + API)
-│   ├── models/          # Data models
-│   ├── parsers/         # License server parsers
+│   ├── models/          # Data models and types
+│   ├── parsers/         # License server parsers (FlexLM, RLM)
 │   ├── scheduler/       # Background job scheduler
-│   └── services/        # Business logic
+│   ├── services/        # Business logic (license, alert, collector, analytics)
+│   └── util/            # Shared utilities (binary path, validation)
 ├── web/
-│   ├── static/          # CSS, JS, images
-│   └── templates/       # HTML templates
+│   ├── static/          # CSS, JS, fonts, images
+│   └── templates/       # HTML templates (Bootstrap 5)
 ├── config.yaml          # Configuration file
 ├── go.mod               # Go dependencies
-└── README.go.md         # This file
+└── README.md            # This file
 ```
 
 ### Components
 
-1. **Parsers** - Query license servers and parse output
-2. **Services** - Business logic for licenses, alerts, collection
-3. **Handlers** - HTTP request handlers for web and API
+1. **Parsers** - Query license servers (FlexLM, RLM) and parse output
+2. **Services** - Business logic:
+   - License service - License operations and queries
+   - Alert service - Alert generation and email notifications
+   - Collector service - Data collection workers
+   - Analytics service - Predictive analytics and forecasting
+3. **Handlers** - HTTP request handlers for web UI and REST API
 4. **Scheduler** - Background jobs for data collection and alerts
-5. **Database** - Data persistence layer with migrations
+5. **Database** - Data persistence layer with auto-migrations (SQLite, PostgreSQL, MySQL)
 
 ## Development
 
@@ -209,35 +250,12 @@ GOOS=windows GOARCH=amd64 go build -o licet-windows-amd64.exe ./cmd/server
 
 ## Supported License Server Types
 
-### FlexLM (Flexera)
-- Status: ✅ Fully Implemented
-- Binary: `lmutil`
-- Features: Server status, features, users, expiration
-
-### RLM (Reprise)
-- Status: ✅ Fully Implemented
-- Binary: `rlmutil`
-- Features: Server status, features, users, expiration
-
-### SPM (Sentinel)
-- Status: 🚧 Planned
-- Binary: `spmstat`
-
-### SESI (Side Effects)
-- Status: 🚧 Planned
-- Binary: `sesictrl`
-
-### RVL (RE:Vision)
-- Status: 🚧 Planned
-- Binary: `rvlstatus`
-
-### Tweak
-- Status: 🚧 Planned
-- Binary: `tlm_server`
-
-### Pixar
-- Status: 🚧 Planned
-- Binary: `pixar_query.sh`
+| Type | Status | Binary | Features |
+|------|--------|--------|----------|
+| **FlexLM** (Flexera) | ✅ Fully Implemented | `lmutil` | Server status, features, users, expiration |
+| **RLM** (Reprise) | ✅ Fully Implemented | `rlmutil` | Server status, features, users, expiration |
+| **SPM** (Sentinel) | 🚧 Planned | `spmstat` | - |
+| **SESI** (Side Effects) | 🚧 Planned | `sesictrl` | - |
 
 ## Differences from PHP Version
 
