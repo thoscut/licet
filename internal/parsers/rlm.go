@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,31 +26,10 @@ func NewRLMParser(rlmstatPath string) *RLMParser {
 }
 
 func (p *RLMParser) Query(hostname string) models.ServerQueryResult {
-	result := models.ServerQueryResult{
-		Status: models.ServerStatus{
-			Hostname:    hostname,
-			Service:     "down",
-			LastChecked: time.Now(),
-		},
-		Features: []models.Feature{},
-		Users:    []models.LicenseUser{},
-	}
+	result := NewServerQueryResult(hostname)
 
-	cmd := exec.Command(p.rlmstatPath, "rlmstat", "-a", "-c", hostname)
-
-	// Log command execution at debug level
-	log.Debugf("Executing RLM command: %s %s", p.rlmstatPath, strings.Join(cmd.Args[1:], " "))
-
-	// Capture both stdout and stderr for debug logging
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Debugf("rlmstat command finished with error: %v", err)
-	}
-
-	// Log raw output at debug level
-	if log.IsLevelEnabled(log.DebugLevel) && len(output) > 0 {
-		log.Debugf("RLM command output for %s:\n%s", hostname, string(output))
-	}
+	// Execute rlmstat command
+	output, _ := ExecuteCommand("RLM", p.rlmstatPath, "rlmstat", "-a", "-c", hostname)
 
 	// Parse output
 	p.parseOutput(strings.NewReader(string(output)), &result)
@@ -124,19 +102,7 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 		if matches := featureLicenseRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
 			total, _ := strconv.Atoi(matches[1])
 			used, _ := strconv.Atoi(matches[2])
-			expirationStr := matches[3]
-
-			var expDate time.Time
-			if expirationStr == "permanent" {
-				expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
-			} else {
-				var err error
-				expDate, err = time.Parse("2-Jan-2006", expirationStr)
-				if err != nil {
-					log.Debugf("Failed to parse expiration: %v", err)
-					expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
-				}
-			}
+			expDate := ParseExpirationDate(matches[3])
 
 			featureMap[currentFeature] = &models.Feature{
 				ServerHostname: result.Status.Hostname,
@@ -153,22 +119,7 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 
 		if matches := uncountedLicenseRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
 			used, _ := strconv.Atoi(matches[1])
-			expirationStr := matches[2]
-			if expirationStr == "" {
-				expirationStr = "permanent"
-			}
-
-			var expDate time.Time
-			if expirationStr == "permanent" {
-				expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
-			} else {
-				var err error
-				expDate, err = time.Parse("2-Jan-2006", expirationStr)
-				if err != nil {
-					log.Debugf("Failed to parse expiration: %v", err)
-					expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
-				}
-			}
+			expDate := ParseExpirationDate(matches[2])
 
 			featureMap[currentFeature] = &models.Feature{
 				ServerHostname: result.Status.Hostname,
@@ -200,11 +151,8 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 				continue
 			}
 
-			// Since RLM doesn't include year, we need to set it to current year
-			now := time.Now()
-			checkedOut = time.Date(now.Year(), checkedOut.Month(), checkedOut.Day(),
-				checkedOut.Hour(), checkedOut.Minute(), checkedOut.Second(),
-				checkedOut.Nanosecond(), time.Local)
+			// Adjust to current year since RLM doesn't include year
+			checkedOut = AdjustCheckoutTimeToCurrentYear(checkedOut)
 
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,

@@ -3,9 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"licet/internal/config"
 	"licet/internal/services"
+	"licet/internal/util"
 )
 
 // AddServer handles POST /api/v1/servers - adds a new license server to config file
@@ -23,19 +25,18 @@ func AddServer(cfg *config.Config) http.HandlerFunc {
 			return
 		}
 
-		// Validate required fields
-		if server.Hostname == "" || server.Type == "" {
-			http.Error(w, "Hostname and type are required", http.StatusBadRequest)
+		// Validate hostname format
+		hostname, err := util.ValidateHostname(server.Hostname)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		server.Hostname = hostname
 
-		// Validate server type (only supported types)
-		validTypes := map[string]bool{
-			"flexlm": true,
-			"rlm":    true,
-		}
-		if !validTypes[server.Type] {
-			http.Error(w, "Invalid server type", http.StatusBadRequest)
+		// Normalize and validate server type
+		server.Type = strings.ToLower(strings.TrimSpace(server.Type))
+		if err := util.ValidateServerType(server.Type); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -116,8 +117,18 @@ func TestServerConnection(cfg *config.Config, licenseService *services.LicenseSe
 			return
 		}
 
-		if req.Hostname == "" || req.Type == "" {
-			http.Error(w, "Hostname and type are required", http.StatusBadRequest)
+		// Validate hostname format
+		hostname, err := util.ValidateHostname(req.Hostname)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		req.Hostname = hostname
+
+		// Normalize and validate server type
+		req.Type = strings.ToLower(strings.TrimSpace(req.Type))
+		if err := util.ValidateServerType(req.Type); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -172,6 +183,24 @@ func UpdateEmailSettings(cfg *config.Config) http.HandlerFunc {
 			return
 		}
 
+		// Validate email settings if enabled
+		if emailConfig.Enabled {
+			if err := util.ValidateEmail(emailConfig.From); err != nil {
+				http.Error(w, "Invalid 'from' email: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			for _, to := range emailConfig.To {
+				if err := util.ValidateEmail(to); err != nil {
+					http.Error(w, "Invalid 'to' email: "+err.Error(), http.StatusBadRequest)
+					return
+				}
+			}
+			if err := util.ValidatePort(emailConfig.SMTPPort); err != nil {
+				http.Error(w, "Invalid SMTP port: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
 		configWriter := services.NewConfigWriter()
 		if err := configWriter.UpdateEmailSettings(emailConfig.Enabled, emailConfig.From, emailConfig.To,
 			emailConfig.SMTPHost, emailConfig.SMTPPort, emailConfig.Username, emailConfig.Password); err != nil {
@@ -203,6 +232,16 @@ func UpdateAlertSettings(cfg *config.Config) http.HandlerFunc {
 
 		if err := json.NewDecoder(r.Body).Decode(&alertConfig); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// Validate alert settings
+		if err := util.ValidatePositiveInt(alertConfig.LeadTimeDays, "lead_time_days"); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := util.ValidatePositiveInt(alertConfig.ResendIntervalMin, "resend_interval_min"); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 

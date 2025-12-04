@@ -31,7 +31,7 @@ func (s *CollectorService) CollectAll() error {
 
 	servers, err := s.licenseService.GetAllServers()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get servers: %w", err)
 	}
 
 	// Use parallel collection with worker pool
@@ -85,7 +85,7 @@ func (s *CollectorService) CollectServer(server models.LicenseServer) error {
 	result, err := s.licenseService.QueryServer(server.Hostname, server.Type)
 	if err != nil {
 		log.Errorf("Query failed for %s: %v", server.Hostname, err)
-		return err
+		return fmt.Errorf("query failed for %s: %w", server.Hostname, err)
 	}
 
 	log.Infof("Collected %d features and %d users from %s",
@@ -100,7 +100,7 @@ func (s *CollectorService) CheckExpirations() error {
 	ctx := context.Background()
 	features, err := s.licenseService.GetExpiringFeatures(ctx, s.cfg.Alerts.LeadTimeDays)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get expiring features: %w", err)
 	}
 
 	if len(features) == 0 {

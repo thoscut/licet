@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,32 +26,10 @@ func NewFlexLMParser(lmutilPath string) *FlexLMParser {
 }
 
 func (p *FlexLMParser) Query(hostname string) models.ServerQueryResult {
-	result := models.ServerQueryResult{
-		Status: models.ServerStatus{
-			Hostname:    hostname,
-			Service:     "down",
-			LastChecked: time.Now(),
-		},
-		Features: []models.Feature{},
-		Users:    []models.LicenseUser{},
-	}
+	result := NewServerQueryResult(hostname)
 
 	// Execute lmstat command
-	cmd := exec.Command(p.lmutilPath, "lmstat", "-i", "-a", "-c", hostname)
-
-	// Log command execution at debug level
-	log.Debugf("Executing FlexLM command: %s %s", p.lmutilPath, strings.Join(cmd.Args[1:], " "))
-
-	// Capture both stdout and stderr for debug logging
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Debugf("lmstat command finished with error: %v", err)
-	}
-
-	// Log raw output at debug level
-	if log.IsLevelEnabled(log.DebugLevel) && len(output) > 0 {
-		log.Debugf("FlexLM command output for %s:\n%s", hostname, string(output))
-	}
+	output, _ := ExecuteCommand("FlexLM", p.lmutilPath, "lmstat", "-i", "-a", "-c", hostname)
 
 	// Parse output
 	p.parseOutput(strings.NewReader(string(output)), &result)
@@ -214,23 +191,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 		}
 
 		if matched {
-			// Replace both -jan-0000 and -jan-0 with -jan-2036 (matching PHP behavior)
-			expirationStr = strings.Replace(expirationStr, "-jan-0000", "-jan-2036", 1)
-			expirationStr = strings.Replace(expirationStr, "-jan-0", "-jan-2036", 1)
-
-			var expDate time.Time
-			if strings.ToLower(expirationStr) == "permanent" {
-				// Set permanent licenses to fixed far future date (prevents duplicate records)
-				expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
-			} else {
-				var err error
-				expDate, err = time.Parse("2-Jan-2006", expirationStr)
-				if err != nil {
-					log.Debugf("Failed to parse expiration date '%s': %v", expirationStr, err)
-					// Use fixed far future date for unparseable dates (prevents duplicate records)
-					expDate = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
-				}
-			}
+			expDate := ParseExpirationDate(expirationStr)
 
 			// Create a unique key for each license pool: name + version + expiration
 			key := fmt.Sprintf("%s|%s|%s", featureName, version, expDate.Format("2006-01-02"))
@@ -271,12 +232,8 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 				continue
 			}
 
-			// Since FlexLM doesn't include year, we need to set it to current year
-			// The parsed time will have year 0, so we need to replace it
-			now := time.Now()
-			checkedOut = time.Date(now.Year(), checkedOut.Month(), checkedOut.Day(),
-				checkedOut.Hour(), checkedOut.Minute(), checkedOut.Second(),
-				checkedOut.Nanosecond(), time.Local)
+			// Adjust to current year since FlexLM doesn't include year
+			checkedOut = AdjustCheckoutTimeToCurrentYear(checkedOut)
 
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,
