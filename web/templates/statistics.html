@@ -121,28 +121,13 @@
         </div>
 
         <div class="row mt-4">
-            <div class="col-md-6">
+            <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
                         <h5 class="mb-0">Server Type Distribution</h5>
                     </div>
                     <div class="card-body">
                         <div id="serverTypeStats">
-                            <p class="text-center">
-                                <span class="spinner-border" role="status"></span>
-                                <span class="ms-2">Loading statistics...</span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">License Utilization Overview</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="utilizationStats">
                             <p class="text-center">
                                 <span class="spinner-border" role="status"></span>
                                 <span class="ms-2">Loading statistics...</span>
@@ -220,13 +205,27 @@
 
                 document.getElementById('totalServers').textContent = servers.length;
 
-                // Calculate total features (this would need API enhancement)
+                // Fetch features for each server to calculate totals
                 let totalFeatures = 0;
                 let totalLicenses = 0;
 
-                // For now, show placeholder values
-                document.getElementById('totalFeatures').textContent = '-';
-                document.getElementById('activeLicenses').textContent = '-';
+                const featurePromises = servers.map(server =>
+                    fetch(`/api/v1/servers/${encodeURIComponent(server.hostname)}/features`)
+                        .then(res => res.json())
+                        .catch(() => ({ features: [] }))
+                );
+
+                const featureResults = await Promise.all(featurePromises);
+                featureResults.forEach(result => {
+                    const features = result.features || [];
+                    totalFeatures += features.length;
+                    features.forEach(feature => {
+                        totalLicenses += feature.total_licenses || 0;
+                    });
+                });
+
+                document.getElementById('totalFeatures').textContent = totalFeatures;
+                document.getElementById('activeLicenses').textContent = totalLicenses;
 
             } catch (error) {
                 console.error('Error loading server stats:', error);
@@ -256,7 +255,7 @@
                             <li class="list-group-item">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <strong>${alert.server_name}</strong> - ${alert.feature_name}
+                                        <strong>${alert.server_hostname}</strong> - ${alert.feature_name}
                                         <br>
                                         <small class="text-muted">${alert.message}</small>
                                     </div>
@@ -347,13 +346,6 @@
 
                 html += '</tbody></table></div>';
                 summaryDiv.innerHTML = html;
-
-                // Also update utilization stats placeholder
-                const utilizationDiv = document.getElementById('utilizationStats');
-                utilizationDiv.innerHTML = `
-                    <p class="text-muted mb-2">License utilization tracking coming soon</p>
-                    <p class="text-muted mb-0"><small>This feature will display real-time license usage across all servers</small></p>
-                `;
 
             } catch (error) {
                 console.error('Error loading server status summary:', error);
