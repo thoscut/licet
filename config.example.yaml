@@ -10,6 +10,11 @@ server:
     - "http://localhost:8080"
     - "https://yourdomain.com"
 
+  # HTTPS/TLS Configuration
+  tls_enabled: false  # Set to true to enable HTTPS
+  tls_cert_file: "/path/to/certificate.crt"  # Path to TLS certificate file (required if tls_enabled is true)
+  tls_key_file: "/path/to/private.key"  # Path to TLS private key file (required if tls_enabled is true)
+
 database:
   # Options: sqlite, postgres, mysql
   type: sqlite
