@@ -14,10 +14,19 @@
         .utilization-card {
             margin-bottom: 1rem;
             transition: transform 0.2s;
+            cursor: pointer;
         }
         .utilization-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .checkout-badge {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+        }
+        .card-body {
+            position: relative;
         }
         .utilization-low { border-left: 4px solid #28a745; }
         .utilization-medium { border-left: 4px solid #ffc107; }
@@ -245,6 +254,56 @@
         </footer>
     </div>
 
+    <!-- Checkouts Modal -->
+    <div class="modal fade" id="checkoutsModal" tabindex="-1" aria-labelledby="checkoutsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="checkoutsModalLabel">Current Checkouts</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="checkoutsLoading" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading checkout data...</p>
+                    </div>
+                    <div id="checkoutsContent" style="display: none;">
+                        <div class="mb-3">
+                            <span class="badge bg-primary" id="modalFeatureName"></span>
+                            <span class="badge bg-secondary" id="modalServerName"></span>
+                        </div>
+                        <div id="checkoutsTableWrapper">
+                            <table class="table table-sm table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Host</th>
+                                        <th>Checked Out At</th>
+                                        <th>Duration</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="checkoutsTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="noCheckouts" class="alert alert-info" style="display: none;">
+                            No active checkouts for this feature.
+                        </div>
+                    </div>
+                    <div id="checkoutsError" class="alert alert-danger" style="display: none;">
+                        Failed to load checkout data. Please try again.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a id="viewDetailsLink" href="#" class="btn btn-outline-primary">View Full Details</a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/bootstrap.min.js"></script>
     <script>
         let currentUtilizationData = [];
@@ -340,17 +399,24 @@
                 const progressBarClass = item.utilization_pct >= 90 ? 'bg-danger' :
                                         item.utilization_pct >= 70 ? 'bg-warning' : 'bg-success';
 
+                const checkoutBadge = item.used_licenses > 0
+                    ? `<span class="badge bg-primary checkout-badge" title="Click to view checkouts">${item.used_licenses} checkout${item.used_licenses > 1 ? 's' : ''}</span>`
+                    : '';
+
                 return `
                     <div class="col-md-6 col-lg-4">
-                        <div class="card utilization-card ${utilizationClass}">
+                        <div class="card utilization-card ${utilizationClass}"
+                             onclick="showCheckouts('${escapeHtml(item.server_hostname)}', '${escapeHtml(item.feature_name)}')"
+                             title="Click to view checkouts">
                             <div class="card-body">
-                                <h6 class="card-title text-truncate" title="${item.feature_name}">
-                                    ${item.feature_name}
+                                ${checkoutBadge}
+                                <h6 class="card-title text-truncate" title="${escapeHtml(item.feature_name)}">
+                                    ${escapeHtml(item.feature_name)}
                                 </h6>
                                 <p class="card-text small text-muted mb-2">
-                                    ${item.server_hostname}
+                                    ${escapeHtml(item.server_hostname)}
                                     ${item.version ? `<br><span class="badge bg-info text-dark">v${item.version}</span>` : ''}
-                                    ${item.vendor_daemon ? ` <span class="badge bg-secondary">${item.vendor_daemon}</span>` : ''}
+                                    ${item.vendor_daemon ? ` <span class="badge bg-secondary">${escapeHtml(item.vendor_daemon)}</span>` : ''}
                                 </p>
                                 <div class="d-flex justify-content-between mb-2">
                                     <span>Usage</span>
@@ -438,6 +504,146 @@
             a.download = `license-utilization-${new Date().toISOString().split('T')[0]}.csv`;
             a.click();
             window.URL.revokeObjectURL(url);
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Server type cache
+        let serverTypes = {};
+
+        // Load server types for API calls
+        async function loadServerTypes() {
+            if (Object.keys(serverTypes).length > 0) return;
+            try {
+                const response = await fetch('/api/v1/servers');
+                const data = await response.json();
+                data.servers.forEach(server => {
+                    serverTypes[server.hostname] = server.type || 'flexlm';
+                });
+            } catch (error) {
+                console.error('Error loading server types:', error);
+            }
+        }
+
+        // Show checkouts modal
+        async function showCheckouts(serverHostname, featureName) {
+            const modal = new bootstrap.Modal(document.getElementById('checkoutsModal'));
+
+            // Reset modal state
+            document.getElementById('checkoutsLoading').style.display = 'block';
+            document.getElementById('checkoutsContent').style.display = 'none';
+            document.getElementById('checkoutsError').style.display = 'none';
+
+            // Update modal title and badges
+            document.getElementById('checkoutsModalLabel').textContent = `Checkouts: ${featureName}`;
+            document.getElementById('modalFeatureName').textContent = featureName;
+            document.getElementById('modalServerName').textContent = serverHostname;
+            document.getElementById('viewDetailsLink').href = `/details/${encodeURIComponent(serverHostname)}`;
+
+            modal.show();
+
+            try {
+                // Ensure we have server types loaded
+                await loadServerTypes();
+                const serverType = serverTypes[serverHostname] || 'flexlm';
+
+                // Fetch users/checkouts from API
+                const url = `/api/v1/servers/${encodeURIComponent(serverHostname)}/users?type=${encodeURIComponent(serverType)}`;
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                const users = data.users || [];
+
+                // Filter users by feature
+                const checkouts = users.filter(user => user.feature_name === featureName);
+
+                // Render checkouts
+                renderCheckouts(checkouts);
+
+            } catch (error) {
+                console.error('Error loading checkouts:', error);
+                document.getElementById('checkoutsLoading').style.display = 'none';
+                document.getElementById('checkoutsError').style.display = 'block';
+            }
+        }
+
+        // Render checkouts in the modal table
+        function renderCheckouts(checkouts) {
+            document.getElementById('checkoutsLoading').style.display = 'none';
+            document.getElementById('checkoutsContent').style.display = 'block';
+
+            const tbody = document.getElementById('checkoutsTableBody');
+            const tableWrapper = document.getElementById('checkoutsTableWrapper');
+            const noCheckouts = document.getElementById('noCheckouts');
+
+            if (checkouts.length === 0) {
+                tableWrapper.style.display = 'none';
+                noCheckouts.style.display = 'block';
+                return;
+            }
+
+            tableWrapper.style.display = 'block';
+            noCheckouts.style.display = 'none';
+
+            // Build table rows
+            const rows = checkouts.map(checkout => {
+                const checkedOutAt = checkout.checked_out_at ? new Date(checkout.checked_out_at) : null;
+                const formattedTime = checkedOutAt ? formatDateTime(checkedOutAt) : '-';
+                const duration = checkedOutAt ? calculateDuration(checkedOutAt) : '-';
+
+                return `
+                    <tr>
+                        <td>${escapeHtml(checkout.username || '-')}</td>
+                        <td>${escapeHtml(checkout.host || '-')}</td>
+                        <td>${formattedTime}</td>
+                        <td>${duration}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            tbody.innerHTML = rows;
+        }
+
+        // Format date/time
+        function formatDateTime(date) {
+            return date.toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+        }
+
+        // Calculate duration from checkout time to now
+        function calculateDuration(checkoutTime) {
+            const now = new Date();
+            const diffMs = now - checkoutTime;
+            const diffSeconds = Math.floor(diffMs / 1000);
+            const diffMinutes = Math.floor(diffSeconds / 60);
+            const diffHours = Math.floor(diffMinutes / 60);
+            const diffDays = Math.floor(diffHours / 24);
+
+            if (diffDays > 0) {
+                return `${diffDays}d ${diffHours % 24}h`;
+            } else if (diffHours > 0) {
+                return `${diffHours}h ${diffMinutes % 60}m`;
+            } else if (diffMinutes > 0) {
+                return `${diffMinutes}m`;
+            } else {
+                return `${diffSeconds}s`;
+            }
         }
     </script>
 </body>
