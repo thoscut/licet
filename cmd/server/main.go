@@ -62,7 +62,7 @@ func main() {
 	// Setup HTTP router
 	r := setupRouter(cfg, licenseService, alertService, Version)
 
-	// Start HTTP server
+	// Start HTTP/HTTPS server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler:      r,
@@ -71,11 +71,31 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Validate TLS configuration if enabled
+	if cfg.Server.TLSEnabled {
+		if cfg.Server.TLSCertFile == "" || cfg.Server.TLSKeyFile == "" {
+			log.Fatal("TLS is enabled but certificate or key file path is not configured")
+		}
+		if _, err := os.Stat(cfg.Server.TLSCertFile); os.IsNotExist(err) {
+			log.Fatalf("TLS certificate file not found: %s", cfg.Server.TLSCertFile)
+		}
+		if _, err := os.Stat(cfg.Server.TLSKeyFile); os.IsNotExist(err) {
+			log.Fatalf("TLS key file not found: %s", cfg.Server.TLSKeyFile)
+		}
+	}
+
 	// Start server in goroutine
 	go func() {
-		log.Infof("Server listening on %s", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+		if cfg.Server.TLSEnabled {
+			log.Infof("Server listening on https://%s (TLS enabled)", srv.Addr)
+			if err := srv.ListenAndServeTLS(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("Failed to start HTTPS server: %v", err)
+			}
+		} else {
+			log.Infof("Server listening on http://%s", srv.Addr)
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("Failed to start HTTP server: %v", err)
+			}
 		}
 	}()
 

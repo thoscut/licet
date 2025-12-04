@@ -24,6 +24,9 @@ type ServerConfig struct {
 	UtilizationEnabled bool     `mapstructure:"utilization_enabled"`
 	StatisticsEnabled  bool     `mapstructure:"statistics_enabled"`
 	CORSOrigins        []string `mapstructure:"cors_origins"`
+	TLSEnabled         bool     `mapstructure:"tls_enabled"`
+	TLSCertFile        string   `mapstructure:"tls_cert_file"`
+	TLSKeyFile         string   `mapstructure:"tls_key_file"`
 }
 
 type DatabaseConfig struct {
@@ -89,6 +92,9 @@ func Load() (*Config, error) {
 	viper.SetDefault("server.utilization_enabled", true)
 	viper.SetDefault("server.statistics_enabled", true)
 	viper.SetDefault("server.cors_origins", []string{"http://localhost:8080"})
+	viper.SetDefault("server.tls_enabled", false)
+	viper.SetDefault("server.tls_cert_file", "")
+	viper.SetDefault("server.tls_key_file", "")
 	viper.SetDefault("database.type", "sqlite")
 	viper.SetDefault("database.database", "licet.db")
 	viper.SetDefault("database.sslmode", "disable")
