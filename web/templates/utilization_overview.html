@@ -543,7 +543,9 @@
             document.getElementById('checkoutsModalLabel').textContent = `Checkouts: ${featureName}`;
             document.getElementById('modalFeatureName').textContent = featureName;
             document.getElementById('modalServerName').textContent = serverHostname;
-            document.getElementById('viewDetailsLink').href = `/details/${encodeURIComponent(serverHostname)}`;
+            // Don't use encodeURIComponent for the details link - @ is valid in URL paths
+            // and the server expects the raw hostname
+            document.getElementById('viewDetailsLink').href = `/details/${serverHostname}`;
 
             modal.show();
 
@@ -563,8 +565,12 @@
                 const data = await response.json();
                 const users = data.users || [];
 
-                // Filter users by feature
-                const checkouts = users.filter(user => user.feature_name === featureName);
+                // Filter users by feature (case-insensitive comparison to handle
+                // potential mismatches between stored feature names and live query results)
+                const featureNameLower = featureName.toLowerCase();
+                const checkouts = users.filter(user =>
+                    user.feature_name && user.feature_name.toLowerCase() === featureNameLower
+                );
 
                 // Render checkouts
                 renderCheckouts(checkouts);
