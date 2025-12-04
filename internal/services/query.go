@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -48,7 +49,7 @@ func (s *QueryService) GetAllServers() ([]models.LicenseServer, error) {
 func (s *QueryService) QueryServer(hostname, serverType string) (models.ServerQueryResult, error) {
 	parser, err := s.parserFactory.GetParser(serverType)
 	if err != nil {
-		return models.ServerQueryResult{}, err
+		return models.ServerQueryResult{}, fmt.Errorf("failed to get parser for %s: %w", serverType, err)
 	}
 
 	log.Infof("Querying %s server: %s", serverType, hostname)
