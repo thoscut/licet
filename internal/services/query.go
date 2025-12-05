@@ -9,6 +9,7 @@ import (
 	"licet/internal/config"
 	"licet/internal/models"
 	"licet/internal/parsers"
+	"licet/internal/util"
 )
 
 // QueryService handles license server query operations
@@ -20,7 +21,7 @@ type QueryService struct {
 
 // NewQueryService creates a new query service
 func NewQueryService(cfg *config.Config, storage *StorageService) *QueryService {
-	binPaths := GetDefaultBinaryPaths()
+	binPaths := util.GetDefaultBinaryPaths()
 	return &QueryService{
 		cfg:           cfg,
 		parserFactory: parsers.NewParserFactory(binPaths),

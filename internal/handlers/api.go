@@ -9,9 +9,9 @@ import (
 	"licet/internal/services"
 )
 
-func ListServers(licenseService *services.LicenseService) http.HandlerFunc {
+func ListServers(query *services.QueryService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		servers, err := licenseService.GetAllServers()
+		servers, err := query.GetAllServers()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -24,7 +24,7 @@ func ListServers(licenseService *services.LicenseService) http.HandlerFunc {
 	}
 }
 
-func GetServerStatus(licenseService *services.LicenseService) http.HandlerFunc {
+func GetServerStatus(query *services.QueryService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		server := chi.URLParam(r, "server")
 		serverType := r.URL.Query().Get("type")
@@ -33,7 +33,7 @@ func GetServerStatus(licenseService *services.LicenseService) http.HandlerFunc {
 			serverType = "flexlm" // default
 		}
 
-		result, err := licenseService.QueryServer(server, serverType)
+		result, err := query.QueryServer(server, serverType)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -44,11 +44,11 @@ func GetServerStatus(licenseService *services.LicenseService) http.HandlerFunc {
 	}
 }
 
-func GetServerFeatures(licenseService *services.LicenseService) http.HandlerFunc {
+func GetServerFeatures(storage *services.StorageService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		server := chi.URLParam(r, "server")
 
-		features, err := licenseService.GetFeatures(r.Context(), server)
+		features, err := storage.GetFeatures(r.Context(), server)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -61,7 +61,7 @@ func GetServerFeatures(licenseService *services.LicenseService) http.HandlerFunc
 	}
 }
 
-func GetServerUsers(licenseService *services.LicenseService) http.HandlerFunc {
+func GetServerUsers(query *services.QueryService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		server := chi.URLParam(r, "server")
 		serverType := r.URL.Query().Get("type")
@@ -70,7 +70,7 @@ func GetServerUsers(licenseService *services.LicenseService) http.HandlerFunc {
 			serverType = "flexlm"
 		}
 
-		result, err := licenseService.QueryServer(server, serverType)
+		result, err := query.QueryServer(server, serverType)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -83,7 +83,7 @@ func GetServerUsers(licenseService *services.LicenseService) http.HandlerFunc {
 	}
 }
 
-func GetFeatureUsage(licenseService *services.LicenseService) http.HandlerFunc {
+func GetFeatureUsage(storage *services.StorageService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		feature := chi.URLParam(r, "feature")
 		server := r.URL.Query().Get("server")
@@ -96,7 +96,7 @@ func GetFeatureUsage(licenseService *services.LicenseService) http.HandlerFunc {
 			}
 		}
 
-		usage, err := licenseService.GetFeatureUsageHistory(r.Context(), server, feature, days)
+		usage, err := storage.GetFeatureUsageHistory(r.Context(), server, feature, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -135,11 +135,11 @@ func Health(version string) http.HandlerFunc {
 }
 
 // GetCurrentUtilization returns current utilization for all features across all servers
-func GetCurrentUtilization(licenseService *services.LicenseService) http.HandlerFunc {
+func GetCurrentUtilization(analytics *services.AnalyticsService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		serverFilter := r.URL.Query().Get("server")
 
-		utilization, err := licenseService.GetCurrentUtilization(r.Context(), serverFilter)
+		utilization, err := analytics.GetCurrentUtilization(r.Context(), serverFilter)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -153,7 +153,7 @@ func GetCurrentUtilization(licenseService *services.LicenseService) http.Handler
 }
 
 // GetUtilizationHistory returns time-series usage data for charting
-func GetUtilizationHistory(licenseService *services.LicenseService) http.HandlerFunc {
+func GetUtilizationHistory(analytics *services.AnalyticsService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		server := r.URL.Query().Get("server")
 		feature := r.URL.Query().Get("feature")
@@ -172,7 +172,7 @@ func GetUtilizationHistory(licenseService *services.LicenseService) http.Handler
 			days = 365
 		}
 
-		history, err := licenseService.GetUtilizationHistory(r.Context(), server, feature, days)
+		history, err := analytics.GetUtilizationHistory(r.Context(), server, feature, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -186,7 +186,7 @@ func GetUtilizationHistory(licenseService *services.LicenseService) http.Handler
 }
 
 // GetUtilizationStats returns aggregated statistics
-func GetUtilizationStats(licenseService *services.LicenseService) http.HandlerFunc {
+func GetUtilizationStats(analytics *services.AnalyticsService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		server := r.URL.Query().Get("server")
 		daysStr := r.URL.Query().Get("days")
@@ -198,7 +198,7 @@ func GetUtilizationStats(licenseService *services.LicenseService) http.HandlerFu
 			}
 		}
 
-		stats, err := licenseService.GetUtilizationStats(r.Context(), server, days)
+		stats, err := analytics.GetUtilizationStats(r.Context(), server, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -212,7 +212,7 @@ func GetUtilizationStats(licenseService *services.LicenseService) http.HandlerFu
 }
 
 // GetUtilizationHeatmap returns hour-of-day usage patterns for heatmap visualization
-func GetUtilizationHeatmap(licenseService *services.LicenseService) http.HandlerFunc {
+func GetUtilizationHeatmap(analytics *services.AnalyticsService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		server := r.URL.Query().Get("server")
 		daysStr := r.URL.Query().Get("days")
@@ -224,7 +224,7 @@ func GetUtilizationHeatmap(licenseService *services.LicenseService) http.Handler
 			}
 		}
 
-		heatmap, err := licenseService.GetHeatmapData(r.Context(), server, days)
+		heatmap, err := analytics.GetHeatmapData(r.Context(), server, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -238,7 +238,7 @@ func GetUtilizationHeatmap(licenseService *services.LicenseService) http.Handler
 }
 
 // GetPredictiveAnalytics returns predictive analytics and anomaly detection
-func GetPredictiveAnalytics(licenseService *services.LicenseService) http.HandlerFunc {
+func GetPredictiveAnalytics(analytics *services.AnalyticsService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		server := r.URL.Query().Get("server")
 		feature := r.URL.Query().Get("feature")
@@ -256,13 +256,13 @@ func GetPredictiveAnalytics(licenseService *services.LicenseService) http.Handle
 			}
 		}
 
-		analytics, err := licenseService.GetPredictiveAnalytics(r.Context(), server, feature, days)
+		predictions, err := analytics.GetPredictiveAnalytics(r.Context(), server, feature, days)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(analytics)
+		json.NewEncoder(w).Encode(predictions)
 	}
 }

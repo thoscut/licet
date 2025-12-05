@@ -14,28 +14,51 @@ import (
 )
 
 type WebHandler struct {
-	licenseService *services.LicenseService
-	alertService   *services.AlertService
-	cfg            *config.Config
-	templates      *template.Template
-	version        string
+	query        *services.QueryService
+	storage      *services.StorageService
+	analytics    *services.AnalyticsService
+	alertService *services.AlertService
+	cfg          *config.Config
+	templates    *template.Template
+	version      string
 }
 
-func NewWebHandler(licenseService *services.LicenseService, alertService *services.AlertService, cfg *config.Config, version string) *WebHandler {
+func NewWebHandler(query *services.QueryService, storage *services.StorageService, analytics *services.AnalyticsService, alertService *services.AlertService, cfg *config.Config, version string) *WebHandler {
 	// Load templates from embedded filesystem via web package
 	tmpl := web.LoadTemplates()
 
 	return &WebHandler{
-		licenseService: licenseService,
-		alertService:   alertService,
-		cfg:            cfg,
-		templates:      tmpl,
-		version:        version,
+		query:        query,
+		storage:      storage,
+		analytics:    analytics,
+		alertService: alertService,
+		cfg:          cfg,
+		templates:    tmpl,
+		version:      version,
+	}
+}
+
+// baseData returns common template data used by all handlers
+func (h *WebHandler) baseData(title string) map[string]interface{} {
+	return map[string]interface{}{
+		"Title":              title,
+		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
+		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
+		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
+		"Version":            h.version,
+	}
+}
+
+// render executes a template and handles errors consistently
+func (h *WebHandler) render(w http.ResponseWriter, template string, data map[string]interface{}) {
+	if err := h.templates.ExecuteTemplate(w, template, data); err != nil {
+		log.Errorf("Template error rendering %s: %v", template, err)
+		http.Error(w, "Template error", http.StatusInternalServerError)
 	}
 }
 
 func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
-	servers, err := h.licenseService.GetAllServers()
+	servers, err := h.query.GetAllServers()
 	if err != nil {
 		http.Error(w, "Failed to get servers", http.StatusInternalServerError)
 		return
@@ -49,7 +72,7 @@ func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
 
 	serversWithStatus := make([]ServerWithStatus, 0, len(servers))
 	for _, server := range servers {
-		result, err := h.licenseService.QueryServer(server.Hostname, server.Type)
+		result, err := h.query.QueryServer(server.Hostname, server.Type)
 		if err != nil {
 			log.WithError(err).Warnf("Failed to query server %s", server.Hostname)
 			// Still add the server with error status
@@ -70,19 +93,10 @@ func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	data := map[string]interface{}{
-		"Title":              "License Server Status",
-		"Servers":            serversWithStatus,
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
+	data := h.baseData("License Server Status")
+	data["Servers"] = serversWithStatus
 
-	if err := h.templates.ExecuteTemplate(w, "index.html", data); err != nil {
-		log.Errorf("Template error: %v", err)
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	h.render(w, "index.html", data)
 }
 
 // sortFeaturesByName sorts features alphabetically by name
@@ -110,170 +124,93 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Query the live server to get current features and users
-	result, err := h.licenseService.QueryServer(hostname, serverType)
+	result, err := h.query.QueryServer(hostname, serverType)
 	if err != nil {
 		// Fall back to database features if live query fails
-		features, dbErr := h.licenseService.GetFeatures(r.Context(), hostname)
+		features, dbErr := h.storage.GetFeatures(r.Context(), hostname)
 		if dbErr != nil {
 			http.Error(w, "Failed to get server data", http.StatusInternalServerError)
 			return
 		}
 
-		data := map[string]interface{}{
-			"Title":              "Server Details",
-			"Hostname":           hostname,
-			"Features":           features,
-			"Users":              []interface{}{}, // Empty users if query failed
-			"Error":              err.Error(),
-			"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-			"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-			"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-			"Version":            h.version,
-		}
+		data := h.baseData("Server Details")
+		data["Hostname"] = hostname
+		data["Features"] = features
+		data["Users"] = []interface{}{}
+		data["Error"] = err.Error()
 
-		if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
-			http.Error(w, "Template error", http.StatusInternalServerError)
-		}
+		h.render(w, "details.html", data)
 		return
 	}
 
-	data := map[string]interface{}{
-		"Title":              "Server Details",
-		"Hostname":           hostname,
-		"Features":           result.Features,
-		"Users":              result.Users,
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
+	data := h.baseData("Server Details")
+	data["Hostname"] = hostname
+	data["Features"] = result.Features
+	data["Users"] = result.Users
 
-	if err := h.templates.ExecuteTemplate(w, "details.html", data); err != nil {
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	h.render(w, "details.html", data)
 }
 
 func (h *WebHandler) Expiration(w http.ResponseWriter, r *http.Request) {
 	hostname := chi.URLParam(r, "server")
 
 	// Use the specialized method that filters for features with expiration dates
-	features, err := h.licenseService.GetFeaturesWithExpiration(r.Context(), hostname)
+	features, err := h.storage.GetFeaturesWithExpiration(r.Context(), hostname)
 	if err != nil {
 		http.Error(w, "Failed to get features", http.StatusInternalServerError)
 		return
 	}
 
-	data := map[string]interface{}{
-		"Title":              "License Expiration",
-		"Hostname":           hostname,
-		"Features":           features,
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
+	data := h.baseData("License Expiration")
+	data["Hostname"] = hostname
+	data["Features"] = features
 
-	if err := h.templates.ExecuteTemplate(w, "expiration.html", data); err != nil {
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	h.render(w, "expiration.html", data)
 }
 
 func (h *WebHandler) Utilization(w http.ResponseWriter, r *http.Request) {
-	// Check if utilization page is enabled
 	if !h.cfg.Server.UtilizationEnabled {
 		http.Error(w, "Utilization page is disabled", http.StatusForbidden)
 		return
 	}
 
-	data := map[string]interface{}{
-		"Title":              "License Utilization Overview",
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "utilization_overview.html", data); err != nil {
-		log.Errorf("Template error: %v", err)
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	data := h.baseData("License Utilization Overview")
+	h.render(w, "utilization_overview.html", data)
 }
 
 func (h *WebHandler) UtilizationTrends(w http.ResponseWriter, r *http.Request) {
-	// Check if utilization page is enabled
 	if !h.cfg.Server.UtilizationEnabled {
 		http.Error(w, "Utilization page is disabled", http.StatusForbidden)
 		return
 	}
 
-	data := map[string]interface{}{
-		"Title":              "Usage Trends",
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "utilization_trends.html", data); err != nil {
-		log.Errorf("Template error: %v", err)
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	data := h.baseData("Usage Trends")
+	h.render(w, "utilization_trends.html", data)
 }
 
 func (h *WebHandler) UtilizationAnalytics(w http.ResponseWriter, r *http.Request) {
-	// Check if utilization page is enabled
 	if !h.cfg.Server.UtilizationEnabled {
 		http.Error(w, "Utilization page is disabled", http.StatusForbidden)
 		return
 	}
 
-	data := map[string]interface{}{
-		"Title":              "Predictive Analytics",
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "utilization_analytics.html", data); err != nil {
-		log.Errorf("Template error: %v", err)
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	data := h.baseData("Predictive Analytics")
+	h.render(w, "utilization_analytics.html", data)
 }
 
 func (h *WebHandler) UtilizationStats(w http.ResponseWriter, r *http.Request) {
-	// Check if utilization page is enabled
 	if !h.cfg.Server.UtilizationEnabled {
 		http.Error(w, "Utilization page is disabled", http.StatusForbidden)
 		return
 	}
 
-	data := map[string]interface{}{
-		"Title":              "Detailed Statistics",
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "utilization_stats.html", data); err != nil {
-		log.Errorf("Template error: %v", err)
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	data := h.baseData("Detailed Statistics")
+	h.render(w, "utilization_stats.html", data)
 }
 
 func (h *WebHandler) Denials(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{
-		"Title":              "License Denials",
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "denials.html", data); err != nil {
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	data := h.baseData("License Denials")
+	h.render(w, "denials.html", data)
 }
 
 func (h *WebHandler) Alerts(w http.ResponseWriter, r *http.Request) {
@@ -284,28 +221,19 @@ func (h *WebHandler) Alerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]interface{}{
-		"Title":              "License Alerts",
-		"Alerts":             alerts,
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
+	data := h.baseData("License Alerts")
+	data["Alerts"] = alerts
 
-	if err := h.templates.ExecuteTemplate(w, "alerts.html", data); err != nil {
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	h.render(w, "alerts.html", data)
 }
 
 func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
-	// Check if settings page is enabled
 	if !h.cfg.Server.SettingsEnabled {
 		http.Error(w, "Settings page is disabled", http.StatusForbidden)
 		return
 	}
 
-	servers, err := h.licenseService.GetAllServers()
+	servers, err := h.query.GetAllServers()
 	if err != nil {
 		http.Error(w, "Failed to get servers", http.StatusInternalServerError)
 		return
@@ -315,42 +243,24 @@ func (h *WebHandler) Settings(w http.ResponseWriter, r *http.Request) {
 	checker := services.NewUtilityChecker()
 	utilities := checker.CheckAll()
 
-	data := map[string]interface{}{
-		"Title":              "Application Settings",
-		"ServerPort":         h.cfg.Server.Port,
-		"DatabaseType":       h.cfg.Database.Type,
-		"TotalServers":       len(servers),
-		"Servers":            servers,
-		"Utilities":          utilities,
-		"EmailConfig":        h.cfg.Email,
-		"AlertConfig":        h.cfg.Alerts,
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
+	data := h.baseData("Application Settings")
+	data["ServerPort"] = h.cfg.Server.Port
+	data["DatabaseType"] = h.cfg.Database.Type
+	data["TotalServers"] = len(servers)
+	data["Servers"] = servers
+	data["Utilities"] = utilities
+	data["EmailConfig"] = h.cfg.Email
+	data["AlertConfig"] = h.cfg.Alerts
 
-	if err := h.templates.ExecuteTemplate(w, "settings.html", data); err != nil {
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	h.render(w, "settings.html", data)
 }
 
 func (h *WebHandler) Statistics(w http.ResponseWriter, r *http.Request) {
-	// Check if statistics page is enabled
 	if !h.cfg.Server.StatisticsEnabled {
 		http.Error(w, "Statistics page is disabled", http.StatusForbidden)
 		return
 	}
 
-	data := map[string]interface{}{
-		"Title":              "Statistics Dashboard",
-		"UtilizationEnabled": h.cfg.Server.UtilizationEnabled,
-		"StatisticsEnabled":  h.cfg.Server.StatisticsEnabled,
-		"SettingsEnabled":    h.cfg.Server.SettingsEnabled,
-		"Version":            h.version,
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "statistics.html", data); err != nil {
-		http.Error(w, "Template error", http.StatusInternalServerError)
-	}
+	data := h.baseData("Statistics Dashboard")
+	h.render(w, "statistics.html", data)
 }

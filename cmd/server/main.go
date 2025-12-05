@@ -49,10 +49,13 @@ func main() {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
-	// Initialize services
-	licenseService := services.NewLicenseService(db, cfg)
+	// Initialize services (direct service creation - no facade)
+	dbType := cfg.Database.Type
+	storage := services.NewStorageService(db, dbType)
+	query := services.NewQueryService(cfg, storage)
+	analytics := services.NewAnalyticsService(db, storage, dbType)
 	alertService := services.NewAlertService(db, cfg)
-	collectorService := services.NewCollectorService(db, cfg, licenseService)
+	collectorService := services.NewCollectorService(db, cfg, query, storage)
 
 	// Initialize scheduler for background tasks
 	sched := scheduler.New(cfg, collectorService, alertService)
@@ -60,7 +63,7 @@ func main() {
 	defer sched.Stop()
 
 	// Setup HTTP router
-	r := setupRouter(cfg, licenseService, alertService, Version)
+	r := setupRouter(cfg, query, storage, analytics, alertService, Version)
 
 	// Start HTTP/HTTPS server
 	srv := &http.Server{
@@ -133,7 +136,7 @@ func setupLogging(cfg *config.Config) {
 	}
 }
 
-func setupRouter(cfg *config.Config, licenseService *services.LicenseService, alertService *services.AlertService, version string) *chi.Mux {
+func setupRouter(cfg *config.Config, query *services.QueryService, storage *services.StorageService, analytics *services.AnalyticsService, alertService *services.AlertService, version string) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middleware
@@ -163,7 +166,7 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 	r.Handle("/static/*", http.StripPrefix("/static/", fileServer))
 
 	// Web handlers
-	webHandler := handlers.NewWebHandler(licenseService, alertService, cfg, version)
+	webHandler := handlers.NewWebHandler(query, storage, analytics, alertService, cfg, version)
 	r.Get("/", webHandler.Index)
 	r.Get("/details/{server}", webHandler.Details)
 	r.Get("/expiration/{server}", webHandler.Expiration)
@@ -178,14 +181,14 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 
 	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/servers", handlers.ListServers(licenseService))
+		r.Get("/servers", handlers.ListServers(query))
 		r.Post("/servers", handlers.AddServer(cfg))
 		r.Delete("/servers", handlers.DeleteServer(cfg))
-		r.Post("/servers/test", handlers.TestServerConnection(cfg, licenseService))
-		r.Get("/servers/{server}/status", handlers.GetServerStatus(licenseService))
-		r.Get("/servers/{server}/features", handlers.GetServerFeatures(licenseService))
-		r.Get("/servers/{server}/users", handlers.GetServerUsers(licenseService))
-		r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(licenseService))
+		r.Post("/servers/test", handlers.TestServerConnection(cfg, query))
+		r.Get("/servers/{server}/status", handlers.GetServerStatus(query))
+		r.Get("/servers/{server}/features", handlers.GetServerFeatures(storage))
+		r.Get("/servers/{server}/users", handlers.GetServerUsers(query))
+		r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(storage))
 		r.Get("/alerts", handlers.GetAlerts(alertService))
 		r.Get("/utilities/check", handlers.CheckUtilities())
 		r.Post("/settings/email", handlers.UpdateEmailSettings(cfg))
@@ -193,11 +196,11 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 		r.Get("/health", handlers.Health(version))
 
 		// Utilization endpoints
-		r.Get("/utilization/current", handlers.GetCurrentUtilization(licenseService))
-		r.Get("/utilization/history", handlers.GetUtilizationHistory(licenseService))
-		r.Get("/utilization/stats", handlers.GetUtilizationStats(licenseService))
-		r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(licenseService))
-		r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(licenseService))
+		r.Get("/utilization/current", handlers.GetCurrentUtilization(analytics))
+		r.Get("/utilization/history", handlers.GetUtilizationHistory(analytics))
+		r.Get("/utilization/stats", handlers.GetUtilizationStats(analytics))
+		r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(analytics))
+		r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(analytics))
 	})
 
 	return r

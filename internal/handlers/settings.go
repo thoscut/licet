@@ -99,7 +99,7 @@ func CheckUtilities() http.HandlerFunc {
 }
 
 // TestServerConnection handles POST /api/v1/servers/test - tests connection to a license server
-func TestServerConnection(cfg *config.Config, licenseService *services.LicenseService) http.HandlerFunc {
+func TestServerConnection(cfg *config.Config, query *services.QueryService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Check if settings page is enabled
 		if !cfg.Server.SettingsEnabled {
@@ -133,7 +133,7 @@ func TestServerConnection(cfg *config.Config, licenseService *services.LicenseSe
 		}
 
 		// Try to query the server
-		result, err := licenseService.QueryServer(req.Hostname, req.Type)
+		result, err := query.QueryServer(req.Hostname, req.Type)
 
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil || result.Error != nil {
