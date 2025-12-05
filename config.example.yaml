@@ -74,3 +74,29 @@ rrd:
   enabled: false
   directory: "./rrd"
   collection_interval: 5  # Minutes between data collection
+
+# Response caching configuration
+cache:
+  enabled: true  # Enable/disable API response caching
+  ttl_seconds: 30  # Cache time-to-live in seconds
+  max_entries: 1000  # Maximum number of cached entries
+
+# Rate limiting configuration
+ratelimit:
+  enabled: true  # Enable/disable rate limiting
+  requests_per_minute: 100  # Maximum requests per minute per IP
+  burst_size: 20  # Maximum burst size
+  whitelisted_ips:  # IPs exempt from rate limiting
+    - "127.0.0.1"
+    - "::1"
+  whitelisted_paths:  # Paths exempt from rate limiting
+    - "/api/v1/health"
+    - "/static/"
+
+# Data export configuration
+export:
+  enabled: true  # Enable/disable data export endpoints
+  allowed_formats:  # Allowed export formats
+    - "json"
+    - "csv"
+  max_records: 10000  # Maximum records per export

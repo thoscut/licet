@@ -8,13 +8,16 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Logging  LoggingConfig
-	Servers  []LicenseServer
-	Email    EmailConfig
-	Alerts   AlertConfig
-	RRD      RRDConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Logging   LoggingConfig
+	Servers   []LicenseServer
+	Email     EmailConfig
+	Alerts    AlertConfig
+	RRD       RRDConfig
+	Cache     CacheConfig
+	RateLimit RateLimitConfig
+	Export    ExportConfig
 }
 
 type ServerConfig struct {
@@ -78,6 +81,26 @@ type RRDConfig struct {
 	CollectionInterval int
 }
 
+type CacheConfig struct {
+	Enabled    bool `mapstructure:"enabled"`
+	TTLSeconds int  `mapstructure:"ttl_seconds"`
+	MaxEntries int  `mapstructure:"max_entries"`
+}
+
+type RateLimitConfig struct {
+	Enabled           bool     `mapstructure:"enabled"`
+	RequestsPerMinute int      `mapstructure:"requests_per_minute"`
+	BurstSize         int      `mapstructure:"burst_size"`
+	WhitelistedIPs    []string `mapstructure:"whitelisted_ips"`
+	WhitelistedPaths  []string `mapstructure:"whitelisted_paths"`
+}
+
+type ExportConfig struct {
+	Enabled       bool     `mapstructure:"enabled"`
+	AllowedFormats []string `mapstructure:"allowed_formats"`
+	MaxRecords    int      `mapstructure:"max_records"`
+}
+
 func Load() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -106,6 +129,23 @@ func Load() (*Config, error) {
 	viper.SetDefault("email.enabled", false)
 	viper.SetDefault("rrd.enabled", false)
 	viper.SetDefault("rrd.collectionInterval", 5)
+
+	// Cache defaults
+	viper.SetDefault("cache.enabled", true)
+	viper.SetDefault("cache.ttl_seconds", 30)
+	viper.SetDefault("cache.max_entries", 1000)
+
+	// Rate limit defaults
+	viper.SetDefault("ratelimit.enabled", true)
+	viper.SetDefault("ratelimit.requests_per_minute", 100)
+	viper.SetDefault("ratelimit.burst_size", 20)
+	viper.SetDefault("ratelimit.whitelisted_ips", []string{"127.0.0.1", "::1"})
+	viper.SetDefault("ratelimit.whitelisted_paths", []string{"/api/v1/health", "/static/"})
+
+	// Export defaults
+	viper.SetDefault("export.enabled", true)
+	viper.SetDefault("export.allowed_formats", []string{"json", "csv"})
+	viper.SetDefault("export.max_records", 10000)
 
 	// Environment variables
 	viper.SetEnvPrefix("LICET")

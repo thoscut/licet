@@ -12,6 +12,7 @@ import (
 	"licet/internal/config"
 	"licet/internal/database"
 	"licet/internal/handlers"
+	appmiddleware "licet/internal/middleware"
 	"licet/internal/scheduler"
 	"licet/internal/services"
 	"licet/web"
@@ -143,6 +144,38 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
+	// Rate limiting middleware
+	if cfg.RateLimit.Enabled {
+		rateLimitConfig := appmiddleware.RateLimitConfig{
+			RequestsPerMinute: cfg.RateLimit.RequestsPerMinute,
+			BurstSize:         cfg.RateLimit.BurstSize,
+			Enabled:           cfg.RateLimit.Enabled,
+			WhitelistedIPs:    cfg.RateLimit.WhitelistedIPs,
+			WhitelistedPaths:  cfg.RateLimit.WhitelistedPaths,
+		}
+		rateLimiter := appmiddleware.NewRateLimiter(rateLimitConfig)
+		r.Use(appmiddleware.RateLimitMiddleware(rateLimiter))
+		log.WithFields(log.Fields{
+			"requests_per_minute": rateLimitConfig.RequestsPerMinute,
+			"burst_size":          rateLimitConfig.BurstSize,
+		}).Info("Rate limiting enabled")
+	}
+
+	// Setup cache for API responses
+	var cache *appmiddleware.Cache
+	if cfg.Cache.Enabled {
+		cacheConfig := appmiddleware.CacheConfig{
+			DefaultTTL: time.Duration(cfg.Cache.TTLSeconds) * time.Second,
+			MaxEntries: cfg.Cache.MaxEntries,
+			Enabled:    cfg.Cache.Enabled,
+		}
+		cache = appmiddleware.NewCache(cacheConfig)
+		log.WithFields(log.Fields{
+			"ttl_seconds": cfg.Cache.TTLSeconds,
+			"max_entries": cfg.Cache.MaxEntries,
+		}).Info("Response caching enabled")
+	}
+
 	// CORS - use configured origins or default to localhost
 	corsOrigins := cfg.Server.CORSOrigins
 	if len(corsOrigins) == 0 {
@@ -178,26 +211,82 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 
 	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/servers", handlers.ListServers(licenseService))
+		// Apply caching middleware to read-only API endpoints
+		if cache != nil {
+			r.Group(func(r chi.Router) {
+				r.Use(appmiddleware.CacheMiddleware(cache, time.Duration(cfg.Cache.TTLSeconds)*time.Second))
+
+				r.Get("/servers", handlers.ListServers(licenseService))
+				r.Get("/servers/{server}/status", handlers.GetServerStatus(licenseService))
+				r.Get("/servers/{server}/features", handlers.GetServerFeatures(licenseService))
+				r.Get("/servers/{server}/users", handlers.GetServerUsers(licenseService))
+				r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(licenseService))
+				r.Get("/alerts", handlers.GetAlerts(alertService))
+
+				// Utilization endpoints (cached)
+				r.Get("/utilization/current", handlers.GetCurrentUtilization(licenseService))
+				r.Get("/utilization/history", handlers.GetUtilizationHistory(licenseService))
+				r.Get("/utilization/stats", handlers.GetUtilizationStats(licenseService))
+				r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(licenseService))
+				r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(licenseService))
+
+				// Enhanced statistics endpoints (cached)
+				r.Get("/statistics/enhanced", handlers.GetEnhancedStatistics(licenseService))
+				r.Get("/statistics/trends", handlers.GetTrendAnalysis(licenseService))
+				r.Get("/statistics/capacity", handlers.GetCapacityPlanningReport(licenseService))
+			})
+		} else {
+			r.Get("/servers", handlers.ListServers(licenseService))
+			r.Get("/servers/{server}/status", handlers.GetServerStatus(licenseService))
+			r.Get("/servers/{server}/features", handlers.GetServerFeatures(licenseService))
+			r.Get("/servers/{server}/users", handlers.GetServerUsers(licenseService))
+			r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(licenseService))
+			r.Get("/alerts", handlers.GetAlerts(alertService))
+
+			// Utilization endpoints (not cached)
+			r.Get("/utilization/current", handlers.GetCurrentUtilization(licenseService))
+			r.Get("/utilization/history", handlers.GetUtilizationHistory(licenseService))
+			r.Get("/utilization/stats", handlers.GetUtilizationStats(licenseService))
+			r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(licenseService))
+			r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(licenseService))
+
+			// Enhanced statistics endpoints (not cached)
+			r.Get("/statistics/enhanced", handlers.GetEnhancedStatistics(licenseService))
+			r.Get("/statistics/trends", handlers.GetTrendAnalysis(licenseService))
+			r.Get("/statistics/capacity", handlers.GetCapacityPlanningReport(licenseService))
+		}
+
+		// Non-cached endpoints (mutations and health check)
 		r.Post("/servers", handlers.AddServer(cfg))
 		r.Delete("/servers", handlers.DeleteServer(cfg))
 		r.Post("/servers/test", handlers.TestServerConnection(cfg, licenseService))
-		r.Get("/servers/{server}/status", handlers.GetServerStatus(licenseService))
-		r.Get("/servers/{server}/features", handlers.GetServerFeatures(licenseService))
-		r.Get("/servers/{server}/users", handlers.GetServerUsers(licenseService))
-		r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(licenseService))
-		r.Get("/alerts", handlers.GetAlerts(alertService))
 		r.Get("/utilities/check", handlers.CheckUtilities())
 		r.Post("/settings/email", handlers.UpdateEmailSettings(cfg))
 		r.Post("/settings/alerts", handlers.UpdateAlertSettings(cfg))
 		r.Get("/health", handlers.Health(version))
 
-		// Utilization endpoints
-		r.Get("/utilization/current", handlers.GetCurrentUtilization(licenseService))
-		r.Get("/utilization/history", handlers.GetUtilizationHistory(licenseService))
-		r.Get("/utilization/stats", handlers.GetUtilizationStats(licenseService))
-		r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(licenseService))
-		r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(licenseService))
+		// Export endpoints
+		if cfg.Export.Enabled {
+			exportHandler := handlers.NewExportHandler(licenseService)
+			r.Route("/export", func(r chi.Router) {
+				r.Get("/servers", exportHandler.ExportServers)
+				r.Get("/features", exportHandler.ExportFeatures)
+				r.Get("/utilization", exportHandler.ExportUtilization)
+				r.Get("/utilization/history", exportHandler.ExportUtilizationHistory)
+				r.Get("/stats", exportHandler.ExportStats)
+				r.Get("/report", exportHandler.ExportReport)
+			})
+			log.Info("Data export endpoints enabled")
+		}
+
+		// Cache stats endpoint (for monitoring)
+		if cache != nil {
+			r.Get("/cache/stats", func(w http.ResponseWriter, req *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				stats := cache.Stats()
+				w.Write([]byte(fmt.Sprintf(`{"cache": %v}`, stats)))
+			})
+		}
 	})
 
 	return r

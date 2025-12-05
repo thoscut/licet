@@ -11,9 +11,10 @@ import (
 // LicenseService is a facade that combines Query, Storage, and Analytics services
 // Provides backward compatibility with existing code
 type LicenseService struct {
-	Query     *QueryService
-	Storage   *StorageService
-	Analytics *AnalyticsService
+	Query             *QueryService
+	Storage           *StorageService
+	Analytics         *AnalyticsService
+	EnhancedAnalytics *EnhancedAnalyticsService
 }
 
 // NewLicenseService creates a new license service facade
@@ -22,11 +23,13 @@ func NewLicenseService(db *sqlx.DB, cfg *config.Config) *LicenseService {
 	storage := NewStorageService(db, dbType)
 	query := NewQueryService(cfg, storage)
 	analytics := NewAnalyticsService(db, storage, dbType)
+	enhancedAnalytics := NewEnhancedAnalyticsService(db, storage, dbType)
 
 	return &LicenseService{
-		Query:     query,
-		Storage:   storage,
-		Analytics: analytics,
+		Query:             query,
+		Storage:           storage,
+		Analytics:         analytics,
+		EnhancedAnalytics: enhancedAnalytics,
 	}
 }
 
@@ -83,4 +86,19 @@ func (s *LicenseService) GetHeatmapData(ctx context.Context, server string, days
 // GetPredictiveAnalytics delegates to AnalyticsService
 func (s *LicenseService) GetPredictiveAnalytics(ctx context.Context, server, feature string, days int) (*models.PredictiveAnalytics, error) {
 	return s.Analytics.GetPredictiveAnalytics(ctx, server, feature, days)
+}
+
+// GetEnhancedStatistics delegates to EnhancedAnalyticsService
+func (s *LicenseService) GetEnhancedStatistics(ctx context.Context, server, feature string, days int) (*models.EnhancedStatistics, error) {
+	return s.EnhancedAnalytics.GetEnhancedStatistics(ctx, server, feature, days)
+}
+
+// GetTrendAnalysis delegates to EnhancedAnalyticsService
+func (s *LicenseService) GetTrendAnalysis(ctx context.Context, server, feature string, days int) (*models.TrendAnalysis, error) {
+	return s.EnhancedAnalytics.GetTrendAnalysis(ctx, server, feature, days)
+}
+
+// GetCapacityPlanningReport delegates to EnhancedAnalyticsService
+func (s *LicenseService) GetCapacityPlanningReport(ctx context.Context, days int) (*models.CapacityPlanningReport, error) {
+	return s.EnhancedAnalytics.GetCapacityPlanningReport(ctx, days)
 }
