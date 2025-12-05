@@ -60,8 +60,28 @@ func main() {
 	sched.Start()
 	defer sched.Stop()
 
+	// Initialize WebSocket hub
+	var wsHub *handlers.WebSocketHub
+	if cfg.WebSocket.Enabled {
+		wsConfig := handlers.WebSocketConfig{
+			Enabled:         cfg.WebSocket.Enabled,
+			PingInterval:    cfg.WebSocket.PingInterval,
+			UpdateInterval:  cfg.WebSocket.UpdateInterval,
+			MaxConnections:  cfg.WebSocket.MaxConnections,
+			ReadBufferSize:  cfg.WebSocket.ReadBufferSize,
+			WriteBufferSize: cfg.WebSocket.WriteBufferSize,
+		}
+		wsHub = handlers.NewWebSocketHub(wsConfig, licenseService, alertService)
+		go wsHub.Run()
+		defer wsHub.Stop()
+		log.WithFields(log.Fields{
+			"update_interval": wsConfig.UpdateInterval,
+			"max_connections": wsConfig.MaxConnections,
+		}).Info("WebSocket support enabled")
+	}
+
 	// Setup HTTP router
-	r := setupRouter(cfg, licenseService, alertService, Version)
+	r := setupRouter(cfg, licenseService, alertService, wsHub, Version)
 
 	// Start HTTP/HTTPS server
 	srv := &http.Server{
@@ -134,7 +154,7 @@ func setupLogging(cfg *config.Config) {
 	}
 }
 
-func setupRouter(cfg *config.Config, licenseService *services.LicenseService, alertService *services.AlertService, version string) *chi.Mux {
+func setupRouter(cfg *config.Config, licenseService *services.LicenseService, alertService *services.AlertService, wsHub *handlers.WebSocketHub, version string) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middleware
@@ -143,6 +163,47 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
+
+	// Authentication middleware
+	var authenticator *appmiddleware.Authenticator
+	if cfg.Auth.Enabled {
+		authConfig := appmiddleware.AuthConfig{
+			Enabled:        cfg.Auth.Enabled,
+			SessionTimeout: cfg.Auth.SessionTimeout,
+			ExemptPaths:    cfg.Auth.ExemptPaths,
+			BasicAuth: appmiddleware.BasicAuth{
+				Enabled: cfg.Auth.BasicAuth.Enabled,
+			},
+		}
+
+		// Convert API keys
+		for _, k := range cfg.Auth.APIKeys {
+			authConfig.APIKeys = append(authConfig.APIKeys, appmiddleware.APIKey{
+				Name:        k.Name,
+				Key:         k.Key,
+				Role:        k.Role,
+				Description: k.Description,
+				Enabled:     k.Enabled,
+			})
+		}
+
+		// Convert Basic Auth users
+		for _, u := range cfg.Auth.BasicAuth.Users {
+			authConfig.BasicAuth.Users = append(authConfig.BasicAuth.Users, appmiddleware.BasicUser{
+				Username: u.Username,
+				Password: u.Password,
+				Role:     u.Role,
+				Enabled:  u.Enabled,
+			})
+		}
+
+		authenticator = appmiddleware.NewAuthenticator(authConfig)
+		r.Use(appmiddleware.AuthMiddleware(authenticator))
+		log.WithFields(log.Fields{
+			"api_keys_count": len(authConfig.APIKeys),
+			"basic_auth":     authConfig.BasicAuth.Enabled,
+		}).Info("Authentication enabled")
+	}
 
 	// Rate limiting middleware
 	if cfg.RateLimit.Enabled {
@@ -194,6 +255,12 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 	staticFS := web.GetStaticFS()
 	fileServer := http.FileServer(http.FS(staticFS))
 	r.Handle("/static/*", http.StripPrefix("/static/", fileServer))
+
+	// WebSocket endpoint
+	if wsHub != nil {
+		r.Get("/ws", handlers.WebSocketHandler(wsHub))
+		r.Get("/api/v1/ws/stats", handlers.WebSocketStatsHandler(wsHub))
+	}
 
 	// Web handlers
 	webHandler := handlers.NewWebHandler(licenseService, alertService, cfg, version)
@@ -287,6 +354,14 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 				w.Write([]byte(fmt.Sprintf(`{"cache": %v}`, stats)))
 			})
 		}
+
+		// Auth info endpoint
+		r.Get("/auth/info", func(w http.ResponseWriter, req *http.Request) {
+			authInfo := appmiddleware.GetAuthInfo(req)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(fmt.Sprintf(`{"authenticated":%t,"username":"%s","role":"%s","method":"%s"}`,
+				authInfo.Authenticated, authInfo.Username, authInfo.Role, authInfo.Method)))
+		})
 	})
 
 	return r

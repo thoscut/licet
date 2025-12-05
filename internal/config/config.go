@@ -18,6 +18,8 @@ type Config struct {
 	Cache     CacheConfig
 	RateLimit RateLimitConfig
 	Export    ExportConfig
+	Auth      AuthConfig
+	WebSocket WebSocketConfig
 }
 
 type ServerConfig struct {
@@ -96,9 +98,46 @@ type RateLimitConfig struct {
 }
 
 type ExportConfig struct {
-	Enabled       bool     `mapstructure:"enabled"`
+	Enabled        bool     `mapstructure:"enabled"`
 	AllowedFormats []string `mapstructure:"allowed_formats"`
-	MaxRecords    int      `mapstructure:"max_records"`
+	MaxRecords     int      `mapstructure:"max_records"`
+}
+
+type AuthConfig struct {
+	Enabled        bool           `mapstructure:"enabled"`
+	APIKeys        []APIKeyConfig `mapstructure:"api_keys"`
+	BasicAuth      BasicAuthConfig `mapstructure:"basic_auth"`
+	SessionTimeout int            `mapstructure:"session_timeout"`
+	ExemptPaths    []string       `mapstructure:"exempt_paths"`
+}
+
+type APIKeyConfig struct {
+	Name        string `mapstructure:"name"`
+	Key         string `mapstructure:"key"`
+	Role        string `mapstructure:"role"`
+	Description string `mapstructure:"description"`
+	Enabled     bool   `mapstructure:"enabled"`
+}
+
+type BasicAuthConfig struct {
+	Enabled bool              `mapstructure:"enabled"`
+	Users   []BasicUserConfig `mapstructure:"users"`
+}
+
+type BasicUserConfig struct {
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	Role     string `mapstructure:"role"`
+	Enabled  bool   `mapstructure:"enabled"`
+}
+
+type WebSocketConfig struct {
+	Enabled         bool `mapstructure:"enabled"`
+	PingInterval    int  `mapstructure:"ping_interval"`
+	UpdateInterval  int  `mapstructure:"update_interval"`
+	MaxConnections  int  `mapstructure:"max_connections"`
+	ReadBufferSize  int  `mapstructure:"read_buffer_size"`
+	WriteBufferSize int  `mapstructure:"write_buffer_size"`
 }
 
 func Load() (*Config, error) {
@@ -146,6 +185,20 @@ func Load() (*Config, error) {
 	viper.SetDefault("export.enabled", true)
 	viper.SetDefault("export.allowed_formats", []string{"json", "csv"})
 	viper.SetDefault("export.max_records", 10000)
+
+	// Auth defaults
+	viper.SetDefault("auth.enabled", false)
+	viper.SetDefault("auth.session_timeout", 60)
+	viper.SetDefault("auth.exempt_paths", []string{"/api/v1/health", "/static/", "/ws"})
+	viper.SetDefault("auth.basic_auth.enabled", false)
+
+	// WebSocket defaults
+	viper.SetDefault("websocket.enabled", true)
+	viper.SetDefault("websocket.ping_interval", 30)
+	viper.SetDefault("websocket.update_interval", 10)
+	viper.SetDefault("websocket.max_connections", 100)
+	viper.SetDefault("websocket.read_buffer_size", 1024)
+	viper.SetDefault("websocket.write_buffer_size", 1024)
 
 	// Environment variables
 	viper.SetEnvPrefix("LICET")

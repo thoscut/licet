@@ -100,3 +100,49 @@ export:
     - "json"
     - "csv"
   max_records: 10000  # Maximum records per export
+
+# Authentication configuration
+auth:
+  enabled: false  # Enable/disable authentication
+  session_timeout: 60  # Session timeout in minutes
+
+  # Paths exempt from authentication
+  exempt_paths:
+    - "/api/v1/health"
+    - "/static/"
+    - "/ws"
+
+  # API key authentication
+  api_keys:
+    - name: "admin-key"
+      key: "your-secure-api-key-here"  # Generate a strong random key
+      role: "admin"  # admin, write, readonly
+      description: "Admin API key"
+      enabled: true
+    - name: "readonly-key"
+      key: "your-readonly-api-key-here"
+      role: "readonly"
+      description: "Read-only API key for monitoring"
+      enabled: true
+
+  # Basic authentication
+  basic_auth:
+    enabled: false
+    users:
+      - username: "admin"
+        password: "changeme"  # Use a strong password in production
+        role: "admin"
+        enabled: true
+      - username: "viewer"
+        password: "changeme"
+        role: "readonly"
+        enabled: true
+
+# WebSocket configuration for real-time updates
+websocket:
+  enabled: true  # Enable/disable WebSocket support
+  ping_interval: 30  # Ping interval in seconds
+  update_interval: 10  # Server status update interval in seconds
+  max_connections: 100  # Maximum concurrent WebSocket connections
+  read_buffer_size: 1024  # Read buffer size in bytes
+  write_buffer_size: 1024  # Write buffer size in bytes
