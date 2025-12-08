@@ -14,12 +14,12 @@ import (
 
 // WebSocketConfig holds WebSocket configuration
 type WebSocketConfig struct {
-	Enabled           bool `mapstructure:"enabled"`
-	PingInterval      int  `mapstructure:"ping_interval"`      // Seconds
-	UpdateInterval    int  `mapstructure:"update_interval"`    // Seconds for server status updates
-	MaxConnections    int  `mapstructure:"max_connections"`
-	ReadBufferSize    int  `mapstructure:"read_buffer_size"`
-	WriteBufferSize   int  `mapstructure:"write_buffer_size"`
+	Enabled         bool `mapstructure:"enabled"`
+	PingInterval    int  `mapstructure:"ping_interval"`    // Seconds
+	UpdateInterval  int  `mapstructure:"update_interval"`  // Seconds for server status updates
+	MaxConnections  int  `mapstructure:"max_connections"`
+	ReadBufferSize  int  `mapstructure:"read_buffer_size"`
+	WriteBufferSize int  `mapstructure:"write_buffer_size"`
 }
 
 // DefaultWebSocketConfig returns default WebSocket configuration
@@ -36,15 +36,15 @@ func DefaultWebSocketConfig() WebSocketConfig {
 
 // WebSocket message types
 const (
-	MsgTypeServerStatus    = "server_status"
-	MsgTypeFeatureUpdate   = "feature_update"
-	MsgTypeUserCheckout    = "user_checkout"
-	MsgTypeAlert           = "alert"
-	MsgTypeSubscribe       = "subscribe"
-	MsgTypeUnsubscribe     = "unsubscribe"
-	MsgTypePing            = "ping"
-	MsgTypePong            = "pong"
-	MsgTypeError           = "error"
+	MsgTypeServerStatus  = "server_status"
+	MsgTypeFeatureUpdate = "feature_update"
+	MsgTypeUserCheckout  = "user_checkout"
+	MsgTypeAlert         = "alert"
+	MsgTypeSubscribe     = "subscribe"
+	MsgTypeUnsubscribe   = "unsubscribe"
+	MsgTypePing          = "ping"
+	MsgTypePong          = "pong"
+	MsgTypeError         = "error"
 )
 
 // WebSocketMessage represents a message sent over WebSocket
@@ -71,16 +71,17 @@ type Client struct {
 
 // WebSocketHub manages all WebSocket connections
 type WebSocketHub struct {
-	clients        map[*Client]bool
-	broadcast      chan []byte
-	register       chan *Client
-	unregister     chan *Client
-	mu             sync.RWMutex
-	config         WebSocketConfig
-	licenseService *services.LicenseService
-	alertService   *services.AlertService
-	ctx            context.Context
-	cancel         context.CancelFunc
+	clients      map[*Client]bool
+	broadcast    chan []byte
+	register     chan *Client
+	unregister   chan *Client
+	mu           sync.RWMutex
+	config       WebSocketConfig
+	query        *services.QueryService
+	storage      *services.StorageService
+	alertService *services.AlertService
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 var upgrader = websocket.Upgrader{
@@ -93,19 +94,20 @@ var upgrader = websocket.Upgrader{
 }
 
 // NewWebSocketHub creates a new WebSocket hub
-func NewWebSocketHub(config WebSocketConfig, licenseService *services.LicenseService, alertService *services.AlertService) *WebSocketHub {
+func NewWebSocketHub(config WebSocketConfig, query *services.QueryService, storage *services.StorageService, alertService *services.AlertService) *WebSocketHub {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	hub := &WebSocketHub{
-		clients:        make(map[*Client]bool),
-		broadcast:      make(chan []byte, 256),
-		register:       make(chan *Client),
-		unregister:     make(chan *Client),
-		config:         config,
-		licenseService: licenseService,
-		alertService:   alertService,
-		ctx:            ctx,
-		cancel:         cancel,
+		clients:      make(map[*Client]bool),
+		broadcast:    make(chan []byte, 256),
+		register:     make(chan *Client),
+		unregister:   make(chan *Client),
+		config:       config,
+		query:        query,
+		storage:      storage,
+		alertService: alertService,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 
 	return hub
@@ -182,14 +184,14 @@ func (h *WebSocketHub) statusBroadcaster() {
 
 // broadcastServerStatus sends current server status to all subscribed clients
 func (h *WebSocketHub) broadcastServerStatus() {
-	servers, err := h.licenseService.GetAllServers()
+	servers, err := h.query.GetAllServers()
 	if err != nil {
 		log.WithError(err).Error("Failed to get servers for WebSocket broadcast")
 		return
 	}
 
 	for _, server := range servers {
-		result, err := h.licenseService.QueryServer(server.Hostname, server.Type)
+		result, err := h.query.QueryServer(server.Hostname, server.Type)
 		if err != nil {
 			continue
 		}
@@ -297,7 +299,7 @@ func (h *WebSocketHub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		Type:      "connected",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"message": "Connected to Licet WebSocket",
+			"message":       "Connected to Licet WebSocket",
 			"subscriptions": []string{"all"},
 		},
 	}

@@ -13,23 +13,25 @@ import (
 )
 
 type CollectorService struct {
-	db             *sqlx.DB
-	cfg            *config.Config
-	licenseService *LicenseService
+	db      *sqlx.DB
+	cfg     *config.Config
+	query   *QueryService
+	storage *StorageService
 }
 
-func NewCollectorService(db *sqlx.DB, cfg *config.Config, licenseService *LicenseService) *CollectorService {
+func NewCollectorService(db *sqlx.DB, cfg *config.Config, query *QueryService, storage *StorageService) *CollectorService {
 	return &CollectorService{
-		db:             db,
-		cfg:            cfg,
-		licenseService: licenseService,
+		db:      db,
+		cfg:     cfg,
+		query:   query,
+		storage: storage,
 	}
 }
 
 func (s *CollectorService) CollectAll() error {
 	log.Info("Starting license data collection")
 
-	servers, err := s.licenseService.GetAllServers()
+	servers, err := s.query.GetAllServers()
 	if err != nil {
 		return fmt.Errorf("failed to get servers: %w", err)
 	}
@@ -82,7 +84,7 @@ func (s *CollectorService) CollectAll() error {
 func (s *CollectorService) CollectServer(server models.LicenseServer) error {
 	log.Debugf("Collecting data for %s (%s)", server.Hostname, server.Type)
 
-	result, err := s.licenseService.QueryServer(server.Hostname, server.Type)
+	result, err := s.query.QueryServer(server.Hostname, server.Type)
 	if err != nil {
 		log.Errorf("Query failed for %s: %v", server.Hostname, err)
 		return fmt.Errorf("query failed for %s: %w", server.Hostname, err)
@@ -98,7 +100,7 @@ func (s *CollectorService) CheckExpirations() error {
 	log.Info("Checking for expiring licenses")
 
 	ctx := context.Background()
-	features, err := s.licenseService.GetExpiringFeatures(ctx, s.cfg.Alerts.LeadTimeDays)
+	features, err := s.storage.GetExpiringFeatures(ctx, s.cfg.Alerts.LeadTimeDays)
 	if err != nil {
 		return fmt.Errorf("failed to get expiring features: %w", err)
 	}

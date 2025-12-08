@@ -14,13 +14,17 @@ import (
 
 // ExportHandler handles data export operations
 type ExportHandler struct {
-	licenseService *services.LicenseService
+	query     *services.QueryService
+	storage   *services.StorageService
+	analytics *services.AnalyticsService
 }
 
 // NewExportHandler creates a new export handler
-func NewExportHandler(licenseService *services.LicenseService) *ExportHandler {
+func NewExportHandler(query *services.QueryService, storage *services.StorageService, analytics *services.AnalyticsService) *ExportHandler {
 	return &ExportHandler{
-		licenseService: licenseService,
+		query:     query,
+		storage:   storage,
+		analytics: analytics,
 	}
 }
 
@@ -31,7 +35,7 @@ func (h *ExportHandler) ExportServers(w http.ResponseWriter, r *http.Request) {
 		format = "json"
 	}
 
-	servers, err := h.licenseService.GetAllServers()
+	servers, err := h.query.GetAllServers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -62,7 +66,7 @@ func (h *ExportHandler) ExportFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	features, err := h.licenseService.GetFeatures(r.Context(), server)
+	features, err := h.storage.GetFeatures(r.Context(), server)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -90,7 +94,7 @@ func (h *ExportHandler) ExportUtilization(w http.ResponseWriter, r *http.Request
 
 	serverFilter := r.URL.Query().Get("server")
 
-	utilization, err := h.licenseService.GetCurrentUtilization(r.Context(), serverFilter)
+	utilization, err := h.analytics.GetCurrentUtilization(r.Context(), serverFilter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -126,7 +130,7 @@ func (h *ExportHandler) ExportUtilizationHistory(w http.ResponseWriter, r *http.
 		}
 	}
 
-	history, err := h.licenseService.GetUtilizationHistory(r.Context(), server, feature, days)
+	history, err := h.analytics.GetUtilizationHistory(r.Context(), server, feature, days)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -164,7 +168,7 @@ func (h *ExportHandler) ExportStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	stats, err := h.licenseService.GetUtilizationStats(r.Context(), server, days)
+	stats, err := h.analytics.GetUtilizationStats(r.Context(), server, days)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -202,10 +206,10 @@ func (h *ExportHandler) ExportReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Gather all data for the report
-	servers, _ := h.licenseService.GetAllServers()
-	utilization, _ := h.licenseService.GetCurrentUtilization(r.Context(), server)
-	stats, _ := h.licenseService.GetUtilizationStats(r.Context(), server, days)
-	heatmap, _ := h.licenseService.GetHeatmapData(r.Context(), server, days)
+	servers, _ := h.query.GetAllServers()
+	utilization, _ := h.analytics.GetCurrentUtilization(r.Context(), server)
+	stats, _ := h.analytics.GetUtilizationStats(r.Context(), server, days)
+	heatmap, _ := h.analytics.GetHeatmapData(r.Context(), server, days)
 
 	report := map[string]interface{}{
 		"report_type":   "license_utilization",

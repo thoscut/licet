@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"runtime"
 	"sort"
+
+	"licet/internal/util"
 )
 
 // UtilityStatus represents the status of a license utility binary
@@ -22,7 +24,7 @@ type UtilityChecker struct {
 
 // NewUtilityChecker creates a new utility checker
 func NewUtilityChecker() *UtilityChecker {
-	binPaths := GetDefaultBinaryPaths()
+	binPaths := util.GetDefaultBinaryPaths()
 	return &UtilityChecker{
 		binaries: map[string]string{
 			"FlexLM (lmutil)": binPaths["lmutil"],
