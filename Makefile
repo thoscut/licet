@@ -6,6 +6,13 @@ VERSION?=1.0.0
 BUILD_DIR=build
 GO_FILES=$(shell find . -name '*.go' -not -path './vendor/*')
 
+# Go environment variables
+# Set GOMODCACHE to local directory to avoid "module cache not found" errors
+# especially when running in minimal environments (e.g., Puppet, CI/CD)
+export GOMODCACHE ?= $(shell pwd)/.go-mod-cache
+export GOPATH ?= $(shell pwd)/.go-path
+export GOCACHE ?= $(shell pwd)/.go-build-cache
+
 # Build the application
 build:
 	@echo "Building $(BINARY_NAME)..."
@@ -46,6 +53,7 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out coverage.html
 	rm -f licet.db
+	rm -rf .go-mod-cache .go-path .go-build-cache
 
 # Install dependencies
 deps:
