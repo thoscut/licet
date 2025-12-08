@@ -107,7 +107,7 @@ func (s *EnhancedAnalyticsService) GetEnhancedStatistics(ctx context.Context, se
 	}
 
 	// Calculate time patterns (simplified - would need hourly data for accurate patterns)
-	peakHour := 14 // Default to afternoon
+	peakHour := 14     // Default to afternoon
 	peakDayOfWeek := 2 // Default to Tuesday
 	weekdayAvg := avgUsage
 	weekendAvg := avgUsage * 0.3 // Estimate

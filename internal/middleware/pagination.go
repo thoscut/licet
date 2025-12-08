@@ -63,8 +63,8 @@ func ParsePagination(r *http.Request, config PaginationConfig) Pagination {
 
 // PaginatedResponse represents a paginated API response
 type PaginatedResponse struct {
-	Data       interface{}     `json:"data"`
-	Pagination PaginationMeta  `json:"pagination"`
+	Data       interface{}    `json:"data"`
+	Pagination PaginationMeta `json:"pagination"`
 }
 
 // PaginationMeta contains pagination metadata

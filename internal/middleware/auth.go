@@ -16,27 +16,27 @@ import (
 
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
-	Enabled            bool       `mapstructure:"enabled"`
-	AllowAnonymousRead bool       `mapstructure:"allow_anonymous_read"`
-	APIKeys            []APIKey   `mapstructure:"api_keys"`
-	BasicAuth          BasicAuth  `mapstructure:"basic_auth"`
-	SessionTimeout     int        `mapstructure:"session_timeout"` // Minutes
-	ExemptPaths        []string   `mapstructure:"exempt_paths"`
+	Enabled            bool      `mapstructure:"enabled"`
+	AllowAnonymousRead bool      `mapstructure:"allow_anonymous_read"`
+	APIKeys            []APIKey  `mapstructure:"api_keys"`
+	BasicAuth          BasicAuth `mapstructure:"basic_auth"`
+	SessionTimeout     int       `mapstructure:"session_timeout"` // Minutes
+	ExemptPaths        []string  `mapstructure:"exempt_paths"`
 }
 
 // APIKey represents an API key with associated permissions
 type APIKey struct {
-	Name        string   `mapstructure:"name"`
-	Key         string   `mapstructure:"key"`
-	Role        string   `mapstructure:"role"` // "admin", "readonly", "write"
-	Description string   `mapstructure:"description"`
-	Enabled     bool     `mapstructure:"enabled"`
+	Name        string `mapstructure:"name"`
+	Key         string `mapstructure:"key"`
+	Role        string `mapstructure:"role"` // "admin", "readonly", "write"
+	Description string `mapstructure:"description"`
+	Enabled     bool   `mapstructure:"enabled"`
 }
 
 // BasicAuth holds basic authentication configuration
 type BasicAuth struct {
-	Enabled  bool         `mapstructure:"enabled"`
-	Users    []BasicUser  `mapstructure:"users"`
+	Enabled bool        `mapstructure:"enabled"`
+	Users   []BasicUser `mapstructure:"users"`
 }
 
 // BasicUser represents a user for basic authentication
@@ -70,9 +70,9 @@ const (
 
 // Permission constants
 const (
-	PermissionRead   = "read"
-	PermissionWrite  = "write"
-	PermissionAdmin  = "admin"
+	PermissionRead  = "read"
+	PermissionWrite = "write"
+	PermissionAdmin = "admin"
 )
 
 // AuthContext key for storing auth info in request context
@@ -94,11 +94,11 @@ type AuthInfo struct {
 
 // Authenticator handles authentication for the application
 type Authenticator struct {
-	config       AuthConfig
-	apiKeyIndex  map[string]*APIKey
-	userIndex    map[string]*BasicUser
-	sessions     map[string]*session
-	sessionMu    sync.RWMutex
+	config      AuthConfig
+	apiKeyIndex map[string]*APIKey
+	userIndex   map[string]*BasicUser
+	sessions    map[string]*session
+	sessionMu   sync.RWMutex
 }
 
 type session struct {
@@ -372,20 +372,20 @@ func AuthMiddleware(auth *Authenticator) func(http.Handler) http.Handler {
 			requiredPerm := RequiredPermission(r.Method)
 			if !HasPermission(authInfo.Role, requiredPerm) {
 				log.WithFields(log.Fields{
-					"path":       r.URL.Path,
-					"method":     r.Method,
-					"user":       authInfo.Username,
-					"role":       authInfo.Role,
-					"required":   requiredPerm,
+					"path":     r.URL.Path,
+					"method":   r.Method,
+					"user":     authInfo.Username,
+					"role":     authInfo.Role,
+					"required": requiredPerm,
 				}).Warn("Authorization failed - insufficient permissions")
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
 				json.NewEncoder(w).Encode(map[string]interface{}{
-					"error":   "forbidden",
-					"message": "Insufficient permissions",
+					"error":               "forbidden",
+					"message":             "Insufficient permissions",
 					"required_permission": requiredPerm,
-					"your_role": authInfo.Role,
+					"your_role":           authInfo.Role,
 				})
 				return
 			}

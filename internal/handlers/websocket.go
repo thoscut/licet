@@ -15,8 +15,8 @@ import (
 // WebSocketConfig holds WebSocket configuration
 type WebSocketConfig struct {
 	Enabled         bool `mapstructure:"enabled"`
-	PingInterval    int  `mapstructure:"ping_interval"`    // Seconds
-	UpdateInterval  int  `mapstructure:"update_interval"`  // Seconds for server status updates
+	PingInterval    int  `mapstructure:"ping_interval"`   // Seconds
+	UpdateInterval  int  `mapstructure:"update_interval"` // Seconds for server status updates
 	MaxConnections  int  `mapstructure:"max_connections"`
 	ReadBufferSize  int  `mapstructure:"read_buffer_size"`
 	WriteBufferSize int  `mapstructure:"write_buffer_size"`
