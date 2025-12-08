@@ -6,8 +6,12 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"licet/internal/middleware"
 	"licet/internal/services"
 )
+
+// paginationConfig is the default pagination configuration for API endpoints
+var paginationConfig = middleware.DefaultPaginationConfig()
 
 func ListServers(query *services.QueryService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -17,9 +21,20 @@ func ListServers(query *services.QueryService) http.HandlerFunc {
 			return
 		}
 
+		// Check if pagination is requested
+		if r.URL.Query().Get("limit") != "" || r.URL.Query().Get("page") != "" {
+			pagination := middleware.ParsePagination(r, paginationConfig)
+			paginatedServers, total := middleware.ApplyPagination(servers, pagination)
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(middleware.NewPaginatedResponse(paginatedServers, total, pagination))
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"servers": servers,
+			"total":   len(servers),
 		})
 	}
 }
@@ -54,9 +69,20 @@ func GetServerFeatures(storage *services.StorageService) http.HandlerFunc {
 			return
 		}
 
+		// Check if pagination is requested
+		if r.URL.Query().Get("limit") != "" || r.URL.Query().Get("page") != "" {
+			pagination := middleware.ParsePagination(r, paginationConfig)
+			paginatedFeatures, total := middleware.ApplyPagination(features, pagination)
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(middleware.NewPaginatedResponse(paginatedFeatures, total, pagination))
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"features": features,
+			"total":    len(features),
 		})
 	}
 }
@@ -117,9 +143,20 @@ func GetAlerts(alertService *services.AlertService) http.HandlerFunc {
 			return
 		}
 
+		// Check if pagination is requested
+		if r.URL.Query().Get("limit") != "" || r.URL.Query().Get("page") != "" {
+			pagination := middleware.ParsePagination(r, paginationConfig)
+			paginatedAlerts, total := middleware.ApplyPagination(alerts, pagination)
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(middleware.NewPaginatedResponse(paginatedAlerts, total, pagination))
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"alerts": alerts,
+			"total":  len(alerts),
 		})
 	}
 }
@@ -145,9 +182,20 @@ func GetCurrentUtilization(analytics *services.AnalyticsService) http.HandlerFun
 			return
 		}
 
+		// Check if pagination is requested
+		if r.URL.Query().Get("limit") != "" || r.URL.Query().Get("page") != "" {
+			pagination := middleware.ParsePagination(r, paginationConfig)
+			paginatedUtilization, total := middleware.ApplyPagination(utilization, pagination)
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(middleware.NewPaginatedResponse(paginatedUtilization, total, pagination))
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"utilization": utilization,
+			"total":       len(utilization),
 		})
 	}
 }
@@ -264,5 +312,88 @@ func GetPredictiveAnalytics(analytics *services.AnalyticsService) http.HandlerFu
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(predictions)
+	}
+}
+
+// GetEnhancedStatistics returns comprehensive statistics for a feature
+func GetEnhancedStatistics(enhancedAnalytics *services.EnhancedAnalyticsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		server := r.URL.Query().Get("server")
+		feature := r.URL.Query().Get("feature")
+		daysStr := r.URL.Query().Get("days")
+
+		if server == "" || feature == "" {
+			http.Error(w, "server and feature parameters required", http.StatusBadRequest)
+			return
+		}
+
+		days := 30
+		if daysStr != "" {
+			if d, err := strconv.Atoi(daysStr); err == nil {
+				days = d
+			}
+		}
+
+		stats, err := enhancedAnalytics.GetEnhancedStatistics(r.Context(), server, feature, days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(stats)
+	}
+}
+
+// GetTrendAnalysis returns detailed trend analysis for a feature
+func GetTrendAnalysis(enhancedAnalytics *services.EnhancedAnalyticsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		server := r.URL.Query().Get("server")
+		feature := r.URL.Query().Get("feature")
+		daysStr := r.URL.Query().Get("days")
+
+		if server == "" || feature == "" {
+			http.Error(w, "server and feature parameters required", http.StatusBadRequest)
+			return
+		}
+
+		days := 30
+		if daysStr != "" {
+			if d, err := strconv.Atoi(daysStr); err == nil {
+				days = d
+			}
+		}
+
+		analysis, err := enhancedAnalytics.GetTrendAnalysis(r.Context(), server, feature, days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(analysis)
+	}
+}
+
+// GetCapacityPlanningReport returns a comprehensive capacity planning report
+func GetCapacityPlanningReport(enhancedAnalytics *services.EnhancedAnalyticsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		daysStr := r.URL.Query().Get("days")
+
+		days := 30
+		if daysStr != "" {
+			if d, err := strconv.Atoi(daysStr); err == nil {
+				days = d
+			}
+		}
+
+		report, err := enhancedAnalytics.GetCapacityPlanningReport(r.Context(), days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(report)
 	}
 }

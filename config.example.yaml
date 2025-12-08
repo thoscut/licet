@@ -74,3 +74,76 @@ rrd:
   enabled: false
   directory: "./rrd"
   collection_interval: 5  # Minutes between data collection
+
+# Response caching configuration
+cache:
+  enabled: true  # Enable/disable API response caching
+  ttl_seconds: 30  # Cache time-to-live in seconds
+  max_entries: 1000  # Maximum number of cached entries
+
+# Rate limiting configuration
+ratelimit:
+  enabled: true  # Enable/disable rate limiting
+  requests_per_minute: 100  # Maximum requests per minute per IP
+  burst_size: 20  # Maximum burst size
+  whitelisted_ips:  # IPs exempt from rate limiting
+    - "127.0.0.1"
+    - "::1"
+  whitelisted_paths:  # Paths exempt from rate limiting
+    - "/api/v1/health"
+    - "/static/"
+
+# Data export configuration
+export:
+  enabled: true  # Enable/disable data export endpoints
+  allowed_formats:  # Allowed export formats
+    - "json"
+    - "csv"
+  max_records: 10000  # Maximum records per export
+
+# Authentication configuration
+auth:
+  enabled: false  # Enable/disable authentication
+  allow_anonymous_read: false  # Allow anonymous read-only access when auth is enabled
+  session_timeout: 60  # Session timeout in minutes
+
+  # Paths exempt from authentication
+  exempt_paths:
+    - "/api/v1/health"
+    - "/static/"
+    - "/ws"
+
+  # API key authentication
+  api_keys:
+    - name: "admin-key"
+      key: "your-secure-api-key-here"  # Generate a strong random key
+      role: "admin"  # admin, write, readonly
+      description: "Admin API key"
+      enabled: true
+    - name: "readonly-key"
+      key: "your-readonly-api-key-here"
+      role: "readonly"
+      description: "Read-only API key for monitoring"
+      enabled: true
+
+  # Basic authentication
+  basic_auth:
+    enabled: false
+    users:
+      - username: "admin"
+        password: "changeme"  # Use a strong password in production
+        role: "admin"
+        enabled: true
+      - username: "viewer"
+        password: "changeme"
+        role: "readonly"
+        enabled: true
+
+# WebSocket configuration for real-time updates
+websocket:
+  enabled: true  # Enable/disable WebSocket support
+  ping_interval: 30  # Ping interval in seconds
+  update_interval: 10  # Server status update interval in seconds
+  max_connections: 100  # Maximum concurrent WebSocket connections
+  read_buffer_size: 1024  # Read buffer size in bytes
+  write_buffer_size: 1024  # Write buffer size in bytes

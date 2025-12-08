@@ -12,6 +12,7 @@ import (
 	"licet/internal/config"
 	"licet/internal/database"
 	"licet/internal/handlers"
+	appmiddleware "licet/internal/middleware"
 	"licet/internal/scheduler"
 	"licet/internal/services"
 	"licet/web"
@@ -54,6 +55,7 @@ func main() {
 	storage := services.NewStorageService(db, dbType)
 	query := services.NewQueryService(cfg, storage)
 	analytics := services.NewAnalyticsService(db, storage, dbType)
+	enhancedAnalytics := services.NewEnhancedAnalyticsService(db, storage, dbType)
 	alertService := services.NewAlertService(db, cfg)
 	collectorService := services.NewCollectorService(db, cfg, query, storage)
 
@@ -62,8 +64,28 @@ func main() {
 	sched.Start()
 	defer sched.Stop()
 
+	// Initialize WebSocket hub
+	var wsHub *handlers.WebSocketHub
+	if cfg.WebSocket.Enabled {
+		wsConfig := handlers.WebSocketConfig{
+			Enabled:         cfg.WebSocket.Enabled,
+			PingInterval:    cfg.WebSocket.PingInterval,
+			UpdateInterval:  cfg.WebSocket.UpdateInterval,
+			MaxConnections:  cfg.WebSocket.MaxConnections,
+			ReadBufferSize:  cfg.WebSocket.ReadBufferSize,
+			WriteBufferSize: cfg.WebSocket.WriteBufferSize,
+		}
+		wsHub = handlers.NewWebSocketHub(wsConfig, query, storage, alertService)
+		go wsHub.Run()
+		defer wsHub.Stop()
+		log.WithFields(log.Fields{
+			"update_interval": wsConfig.UpdateInterval,
+			"max_connections": wsConfig.MaxConnections,
+		}).Info("WebSocket support enabled")
+	}
+
 	// Setup HTTP router
-	r := setupRouter(cfg, query, storage, analytics, alertService, Version)
+	r := setupRouter(cfg, query, storage, analytics, enhancedAnalytics, alertService, wsHub, Version)
 
 	// Start HTTP/HTTPS server
 	srv := &http.Server{
@@ -136,7 +158,7 @@ func setupLogging(cfg *config.Config) {
 	}
 }
 
-func setupRouter(cfg *config.Config, query *services.QueryService, storage *services.StorageService, analytics *services.AnalyticsService, alertService *services.AlertService, version string) *chi.Mux {
+func setupRouter(cfg *config.Config, query *services.QueryService, storage *services.StorageService, analytics *services.AnalyticsService, enhancedAnalytics *services.EnhancedAnalyticsService, alertService *services.AlertService, wsHub *handlers.WebSocketHub, version string) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middleware
@@ -145,6 +167,80 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
+
+	// Authentication middleware
+	var authenticator *appmiddleware.Authenticator
+	if cfg.Auth.Enabled {
+		authConfig := appmiddleware.AuthConfig{
+			Enabled:            cfg.Auth.Enabled,
+			AllowAnonymousRead: cfg.Auth.AllowAnonymousRead,
+			SessionTimeout:     cfg.Auth.SessionTimeout,
+			ExemptPaths:        cfg.Auth.ExemptPaths,
+			BasicAuth: appmiddleware.BasicAuth{
+				Enabled: cfg.Auth.BasicAuth.Enabled,
+			},
+		}
+
+		// Convert API keys
+		for _, k := range cfg.Auth.APIKeys {
+			authConfig.APIKeys = append(authConfig.APIKeys, appmiddleware.APIKey{
+				Name:        k.Name,
+				Key:         k.Key,
+				Role:        k.Role,
+				Description: k.Description,
+				Enabled:     k.Enabled,
+			})
+		}
+
+		// Convert Basic Auth users
+		for _, u := range cfg.Auth.BasicAuth.Users {
+			authConfig.BasicAuth.Users = append(authConfig.BasicAuth.Users, appmiddleware.BasicUser{
+				Username: u.Username,
+				Password: u.Password,
+				Role:     u.Role,
+				Enabled:  u.Enabled,
+			})
+		}
+
+		authenticator = appmiddleware.NewAuthenticator(authConfig)
+		r.Use(appmiddleware.AuthMiddleware(authenticator))
+		log.WithFields(log.Fields{
+			"api_keys_count": len(authConfig.APIKeys),
+			"basic_auth":     authConfig.BasicAuth.Enabled,
+		}).Info("Authentication enabled")
+	}
+
+	// Rate limiting middleware
+	if cfg.RateLimit.Enabled {
+		rateLimitConfig := appmiddleware.RateLimitConfig{
+			RequestsPerMinute: cfg.RateLimit.RequestsPerMinute,
+			BurstSize:         cfg.RateLimit.BurstSize,
+			Enabled:           cfg.RateLimit.Enabled,
+			WhitelistedIPs:    cfg.RateLimit.WhitelistedIPs,
+			WhitelistedPaths:  cfg.RateLimit.WhitelistedPaths,
+		}
+		rateLimiter := appmiddleware.NewRateLimiter(rateLimitConfig)
+		r.Use(appmiddleware.RateLimitMiddleware(rateLimiter))
+		log.WithFields(log.Fields{
+			"requests_per_minute": rateLimitConfig.RequestsPerMinute,
+			"burst_size":          rateLimitConfig.BurstSize,
+		}).Info("Rate limiting enabled")
+	}
+
+	// Setup cache for API responses
+	var cache *appmiddleware.Cache
+	if cfg.Cache.Enabled {
+		cacheConfig := appmiddleware.CacheConfig{
+			DefaultTTL: time.Duration(cfg.Cache.TTLSeconds) * time.Second,
+			MaxEntries: cfg.Cache.MaxEntries,
+			Enabled:    cfg.Cache.Enabled,
+		}
+		cache = appmiddleware.NewCache(cacheConfig)
+		log.WithFields(log.Fields{
+			"ttl_seconds": cfg.Cache.TTLSeconds,
+			"max_entries": cfg.Cache.MaxEntries,
+		}).Info("Response caching enabled")
+	}
 
 	// CORS - use configured origins or default to localhost
 	corsOrigins := cfg.Server.CORSOrigins
@@ -165,6 +261,12 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 	fileServer := http.FileServer(http.FS(staticFS))
 	r.Handle("/static/*", http.StripPrefix("/static/", fileServer))
 
+	// WebSocket endpoint
+	if wsHub != nil {
+		r.Get("/ws", handlers.WebSocketHandler(wsHub))
+		r.Get("/api/v1/ws/stats", handlers.WebSocketStatsHandler(wsHub))
+	}
+
 	// Web handlers
 	webHandler := handlers.NewWebHandler(query, storage, analytics, alertService, cfg, version)
 	r.Get("/", webHandler.Index)
@@ -181,26 +283,90 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 
 	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/servers", handlers.ListServers(query))
+		// Apply caching middleware to read-only API endpoints
+		if cache != nil {
+			r.Group(func(r chi.Router) {
+				r.Use(appmiddleware.CacheMiddleware(cache, time.Duration(cfg.Cache.TTLSeconds)*time.Second))
+
+				r.Get("/servers", handlers.ListServers(query))
+				r.Get("/servers/{server}/status", handlers.GetServerStatus(query))
+				r.Get("/servers/{server}/features", handlers.GetServerFeatures(storage))
+				r.Get("/servers/{server}/users", handlers.GetServerUsers(query))
+				r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(storage))
+				r.Get("/alerts", handlers.GetAlerts(alertService))
+
+				// Utilization endpoints (cached)
+				r.Get("/utilization/current", handlers.GetCurrentUtilization(analytics))
+				r.Get("/utilization/history", handlers.GetUtilizationHistory(analytics))
+				r.Get("/utilization/stats", handlers.GetUtilizationStats(analytics))
+				r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(analytics))
+				r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(analytics))
+
+				// Enhanced statistics endpoints (cached)
+				r.Get("/statistics/enhanced", handlers.GetEnhancedStatistics(enhancedAnalytics))
+				r.Get("/statistics/trends", handlers.GetTrendAnalysis(enhancedAnalytics))
+				r.Get("/statistics/capacity", handlers.GetCapacityPlanningReport(enhancedAnalytics))
+			})
+		} else {
+			r.Get("/servers", handlers.ListServers(query))
+			r.Get("/servers/{server}/status", handlers.GetServerStatus(query))
+			r.Get("/servers/{server}/features", handlers.GetServerFeatures(storage))
+			r.Get("/servers/{server}/users", handlers.GetServerUsers(query))
+			r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(storage))
+			r.Get("/alerts", handlers.GetAlerts(alertService))
+
+			// Utilization endpoints (not cached)
+			r.Get("/utilization/current", handlers.GetCurrentUtilization(analytics))
+			r.Get("/utilization/history", handlers.GetUtilizationHistory(analytics))
+			r.Get("/utilization/stats", handlers.GetUtilizationStats(analytics))
+			r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(analytics))
+			r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(analytics))
+
+			// Enhanced statistics endpoints (not cached)
+			r.Get("/statistics/enhanced", handlers.GetEnhancedStatistics(enhancedAnalytics))
+			r.Get("/statistics/trends", handlers.GetTrendAnalysis(enhancedAnalytics))
+			r.Get("/statistics/capacity", handlers.GetCapacityPlanningReport(enhancedAnalytics))
+		}
+
+		// Non-cached endpoints (mutations and health check)
 		r.Post("/servers", handlers.AddServer(cfg))
 		r.Delete("/servers", handlers.DeleteServer(cfg))
 		r.Post("/servers/test", handlers.TestServerConnection(cfg, query))
-		r.Get("/servers/{server}/status", handlers.GetServerStatus(query))
-		r.Get("/servers/{server}/features", handlers.GetServerFeatures(storage))
-		r.Get("/servers/{server}/users", handlers.GetServerUsers(query))
-		r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(storage))
-		r.Get("/alerts", handlers.GetAlerts(alertService))
 		r.Get("/utilities/check", handlers.CheckUtilities())
 		r.Post("/settings/email", handlers.UpdateEmailSettings(cfg))
 		r.Post("/settings/alerts", handlers.UpdateAlertSettings(cfg))
 		r.Get("/health", handlers.Health(version))
 
-		// Utilization endpoints
-		r.Get("/utilization/current", handlers.GetCurrentUtilization(analytics))
-		r.Get("/utilization/history", handlers.GetUtilizationHistory(analytics))
-		r.Get("/utilization/stats", handlers.GetUtilizationStats(analytics))
-		r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(analytics))
-		r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(analytics))
+		// Export endpoints
+		if cfg.Export.Enabled {
+			exportHandler := handlers.NewExportHandler(query, storage, analytics)
+			r.Route("/export", func(r chi.Router) {
+				r.Get("/servers", exportHandler.ExportServers)
+				r.Get("/features", exportHandler.ExportFeatures)
+				r.Get("/utilization", exportHandler.ExportUtilization)
+				r.Get("/utilization/history", exportHandler.ExportUtilizationHistory)
+				r.Get("/stats", exportHandler.ExportStats)
+				r.Get("/report", exportHandler.ExportReport)
+			})
+			log.Info("Data export endpoints enabled")
+		}
+
+		// Cache stats endpoint (for monitoring)
+		if cache != nil {
+			r.Get("/cache/stats", func(w http.ResponseWriter, req *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				stats := cache.Stats()
+				w.Write([]byte(fmt.Sprintf(`{"cache": %v}`, stats)))
+			})
+		}
+
+		// Auth info endpoint
+		r.Get("/auth/info", func(w http.ResponseWriter, req *http.Request) {
+			authInfo := appmiddleware.GetAuthInfo(req)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(fmt.Sprintf(`{"authenticated":%t,"username":"%s","role":"%s","method":"%s"}`,
+				authInfo.Authenticated, authInfo.Username, authInfo.Role, authInfo.Method)))
+		})
 	})
 
 	return r
