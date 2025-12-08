@@ -168,9 +168,10 @@ func setupRouter(cfg *config.Config, licenseService *services.LicenseService, al
 	var authenticator *appmiddleware.Authenticator
 	if cfg.Auth.Enabled {
 		authConfig := appmiddleware.AuthConfig{
-			Enabled:        cfg.Auth.Enabled,
-			SessionTimeout: cfg.Auth.SessionTimeout,
-			ExemptPaths:    cfg.Auth.ExemptPaths,
+			Enabled:            cfg.Auth.Enabled,
+			AllowAnonymousRead: cfg.Auth.AllowAnonymousRead,
+			SessionTimeout:     cfg.Auth.SessionTimeout,
+			ExemptPaths:        cfg.Auth.ExemptPaths,
 			BasicAuth: appmiddleware.BasicAuth{
 				Enabled: cfg.Auth.BasicAuth.Enabled,
 			},

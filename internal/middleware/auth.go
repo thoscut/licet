@@ -16,11 +16,12 @@ import (
 
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
-	Enabled        bool       `mapstructure:"enabled"`
-	APIKeys        []APIKey   `mapstructure:"api_keys"`
-	BasicAuth      BasicAuth  `mapstructure:"basic_auth"`
-	SessionTimeout int        `mapstructure:"session_timeout"` // Minutes
-	ExemptPaths    []string   `mapstructure:"exempt_paths"`
+	Enabled            bool       `mapstructure:"enabled"`
+	AllowAnonymousRead bool       `mapstructure:"allow_anonymous_read"`
+	APIKeys            []APIKey   `mapstructure:"api_keys"`
+	BasicAuth          BasicAuth  `mapstructure:"basic_auth"`
+	SessionTimeout     int        `mapstructure:"session_timeout"` // Minutes
+	ExemptPaths        []string   `mapstructure:"exempt_paths"`
 }
 
 // APIKey represents an API key with associated permissions
@@ -325,6 +326,26 @@ func AuthMiddleware(auth *Authenticator) func(http.Handler) http.Handler {
 
 			// Authenticate the request
 			authInfo := auth.Authenticate(r)
+
+			// Allow anonymous read-only access if configured
+			if !authInfo.Authenticated && auth.config.AllowAnonymousRead {
+				requiredPerm := RequiredPermission(r.Method)
+				if requiredPerm == PermissionRead {
+					// Allow anonymous read access
+					log.WithFields(log.Fields{
+						"path":   r.URL.Path,
+						"method": r.Method,
+						"ip":     getClientIP(r),
+					}).Debug("Anonymous read access allowed")
+
+					// Set anonymous auth info in context
+					ctx := context.WithValue(r.Context(), AuthUserKey, "anonymous")
+					ctx = context.WithValue(ctx, AuthRoleKey, RoleReadonly)
+					ctx = context.WithValue(ctx, AuthMethodKey, "anonymous")
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+			}
 
 			if !authInfo.Authenticated {
 				log.WithFields(log.Fields{

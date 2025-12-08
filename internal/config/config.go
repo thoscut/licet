@@ -104,11 +104,12 @@ type ExportConfig struct {
 }
 
 type AuthConfig struct {
-	Enabled        bool           `mapstructure:"enabled"`
-	APIKeys        []APIKeyConfig `mapstructure:"api_keys"`
-	BasicAuth      BasicAuthConfig `mapstructure:"basic_auth"`
-	SessionTimeout int            `mapstructure:"session_timeout"`
-	ExemptPaths    []string       `mapstructure:"exempt_paths"`
+	Enabled            bool            `mapstructure:"enabled"`
+	AllowAnonymousRead bool            `mapstructure:"allow_anonymous_read"`
+	APIKeys            []APIKeyConfig  `mapstructure:"api_keys"`
+	BasicAuth          BasicAuthConfig `mapstructure:"basic_auth"`
+	SessionTimeout     int             `mapstructure:"session_timeout"`
+	ExemptPaths        []string        `mapstructure:"exempt_paths"`
 }
 
 type APIKeyConfig struct {
@@ -188,6 +189,7 @@ func Load() (*Config, error) {
 
 	// Auth defaults
 	viper.SetDefault("auth.enabled", false)
+	viper.SetDefault("auth.allow_anonymous_read", false)
 	viper.SetDefault("auth.session_timeout", 60)
 	viper.SetDefault("auth.exempt_paths", []string{"/api/v1/health", "/static/", "/ws"})
 	viper.SetDefault("auth.basic_auth.enabled", false)
