@@ -16,6 +16,11 @@ coverage.*
 # Go workspace
 vendor/
 
+# Go cache directories (used when GOMODCACHE/GOPATH not set in environment)
+.go-mod-cache/
+.go-path/
+.go-build-cache/
+
 # Database files
 *.db
 *.db-journal
