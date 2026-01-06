@@ -100,7 +100,7 @@
                     <th class="sortable" data-column="4" data-type="number">Days Until Expiration</th>
                     <th class="sortable" data-column="5" data-type="string">Status</th>
                     {{if $.ShowInactive}}
-                    <th class="sortable" data-column="6" data-type="string">Active</th>
+                    <th class="sortable" data-column="6" data-type="date">Last Seen</th>
                     {{end}}
                 </tr>
             </thead>
@@ -124,13 +124,7 @@
                         {{end}}
                     </td>
                     {{if $.ShowInactive}}
-                    <td>
-                        {{if .IsActive}}
-                        <span class="badge bg-success">Yes</span>
-                        {{else}}
-                        <span class="badge bg-secondary">No</span>
-                        {{end}}
-                    </td>
+                    <td>{{.LastUpdated.Format "2006-01-02 15:04"}}</td>
                     {{end}}
                 </tr>
                 {{end}}
