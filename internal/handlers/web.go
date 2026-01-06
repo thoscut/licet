@@ -154,8 +154,20 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 func (h *WebHandler) Expiration(w http.ResponseWriter, r *http.Request) {
 	hostname := chi.URLParam(r, "server")
 
-	// Use the specialized method that filters for features with expiration dates
-	features, err := h.storage.GetFeaturesWithExpiration(r.Context(), hostname)
+	// Check if user wants to see inactive/historical licenses
+	showInactive := r.URL.Query().Get("show_inactive") == "true"
+
+	var features []models.Feature
+	var err error
+
+	if showInactive {
+		// Show all features including inactive/replaced ones
+		features, err = h.storage.GetAllFeaturesWithExpiration(r.Context(), hostname)
+	} else {
+		// Show only active features (default)
+		features, err = h.storage.GetFeaturesWithExpiration(r.Context(), hostname)
+	}
+
 	if err != nil {
 		http.Error(w, "Failed to get features", http.StatusInternalServerError)
 		return
@@ -164,6 +176,7 @@ func (h *WebHandler) Expiration(w http.ResponseWriter, r *http.Request) {
 	data := h.baseData("License Expiration")
 	data["Hostname"] = hostname
 	data["Features"] = features
+	data["ShowInactive"] = showInactive
 
 	h.render(w, "expiration.html", data)
 }

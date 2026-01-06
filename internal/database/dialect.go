@@ -14,6 +14,8 @@ type Dialect interface {
 	Placeholder(index int) string
 	// SupportsPositionalParams returns true if the dialect uses positional params ($1, $2)
 	SupportsPositionalParams() bool
+	// DeactivateFeaturesForServer returns the SQL to mark all features as inactive for a server
+	DeactivateFeaturesForServer() string
 }
 
 // NewDialect creates a dialect for the given database type
@@ -34,14 +36,15 @@ type PostgresDialect struct{}
 func (d *PostgresDialect) UpsertFeature() string {
 	return `
 		INSERT INTO features
-		(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated, is_active)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
 		ON CONFLICT (server_hostname, name, version) DO UPDATE SET
 			vendor_daemon = EXCLUDED.vendor_daemon,
 			total_licenses = EXCLUDED.total_licenses,
 			used_licenses = EXCLUDED.used_licenses,
 			expiration_date = EXCLUDED.expiration_date,
-			last_updated = EXCLUDED.last_updated
+			last_updated = EXCLUDED.last_updated,
+			is_active = TRUE
 	`
 }
 
@@ -70,20 +73,25 @@ func (d *PostgresDialect) SupportsPositionalParams() bool {
 	return true
 }
 
+func (d *PostgresDialect) DeactivateFeaturesForServer() string {
+	return `UPDATE features SET is_active = FALSE WHERE server_hostname = $1`
+}
+
 // MySQLDialect implements Dialect for MySQL
 type MySQLDialect struct{}
 
 func (d *MySQLDialect) UpsertFeature() string {
 	return `
 		INSERT INTO features
-		(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated, is_active)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)
 		ON DUPLICATE KEY UPDATE
 			vendor_daemon = VALUES(vendor_daemon),
 			total_licenses = VALUES(total_licenses),
 			used_licenses = VALUES(used_licenses),
 			expiration_date = VALUES(expiration_date),
-			last_updated = VALUES(last_updated)
+			last_updated = VALUES(last_updated),
+			is_active = TRUE
 	`
 }
 
@@ -111,14 +119,18 @@ func (d *MySQLDialect) SupportsPositionalParams() bool {
 	return false
 }
 
+func (d *MySQLDialect) DeactivateFeaturesForServer() string {
+	return `UPDATE features SET is_active = FALSE WHERE server_hostname = ?`
+}
+
 // SQLiteDialect implements Dialect for SQLite
 type SQLiteDialect struct{}
 
 func (d *SQLiteDialect) UpsertFeature() string {
 	return `
 		INSERT OR REPLACE INTO features
-		(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		(server_hostname, name, version, vendor_daemon, total_licenses, used_licenses, expiration_date, last_updated, is_active)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
 	`
 }
 
@@ -144,4 +156,8 @@ func (d *SQLiteDialect) Placeholder(index int) string {
 
 func (d *SQLiteDialect) SupportsPositionalParams() bool {
 	return false
+}
+
+func (d *SQLiteDialect) DeactivateFeaturesForServer() string {
+	return `UPDATE features SET is_active = 0 WHERE server_hostname = ?`
 }
