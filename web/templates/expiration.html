@@ -12,6 +12,7 @@
         .status-warning { background-color: #fff3cd; }
         .expiring-soon { background-color: #fff3cd; }
         .expired { background-color: #f8d7da; }
+        .inactive-row { opacity: 0.6; }
         th.sortable {
             cursor: pointer;
             user-select: none;
@@ -79,6 +80,14 @@
         <h1>License Expiration: {{.Hostname}}</h1>
         <p><a href="/">&larr; Back to overview</a></p>
 
+        <div class="mb-3">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="showInactiveToggle" {{if .ShowInactive}}checked{{end}}>
+                <label class="form-check-label" for="showInactiveToggle">Show inactive/replaced licenses</label>
+            </div>
+            <small class="text-muted">Inactive licenses are no longer delivered by the license server (e.g., replaced or removed licenses)</small>
+        </div>
+
         {{if .Features}}
         <h2>License Expiration Dates</h2>
         <table class="table table-striped" id="expirationTable">
@@ -90,18 +99,23 @@
                     <th class="sortable" data-column="3" data-type="number">Licenses</th>
                     <th class="sortable" data-column="4" data-type="number">Days Until Expiration</th>
                     <th class="sortable" data-column="5" data-type="string">Status</th>
+                    {{if $.ShowInactive}}
+                    <th class="sortable" data-column="6" data-type="date">Last Seen</th>
+                    {{end}}
                 </tr>
             </thead>
             <tbody>
                 {{range .Features}}
-                <tr>
+                <tr{{if not .IsActive}} class="inactive-row"{{end}}>
                     <td>{{.Name}}</td>
                     <td>{{.Version}}</td>
                     <td>{{.ExpirationDate.Format "2006-01-02"}}</td>
                     <td>{{.TotalLicenses}}</td>
                     <td>{{.DaysToExpiration}}</td>
                     <td>
-                        {{if lt .DaysToExpiration 0}}
+                        {{if not .IsActive}}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {{else if lt .DaysToExpiration 0}}
                         <span class="badge bg-danger">Expired</span>
                         {{else if lt .DaysToExpiration 30}}
                         <span class="badge bg-warning">Expiring Soon</span>
@@ -109,6 +123,9 @@
                         <span class="badge bg-success">Valid</span>
                         {{end}}
                     </td>
+                    {{if $.ShowInactive}}
+                    <td>{{.LastUpdated.Format "2006-01-02 15:04"}}</td>
+                    {{end}}
                 </tr>
                 {{end}}
             </tbody>
@@ -130,6 +147,22 @@
 
     <script src="/static/js/bootstrap.min.js"></script>
     <script>
+        // Toggle for showing inactive licenses
+        (function() {
+            const toggle = document.getElementById('showInactiveToggle');
+            if (!toggle) return;
+
+            toggle.addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                if (this.checked) {
+                    url.searchParams.set('show_inactive', 'true');
+                } else {
+                    url.searchParams.delete('show_inactive');
+                }
+                window.location.href = url.toString();
+            });
+        })();
+
         // Table sorting functionality (no external dependencies)
         (function() {
             const table = document.getElementById('expirationTable');

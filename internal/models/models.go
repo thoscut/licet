@@ -38,6 +38,7 @@ type Feature struct {
 	ExpirationDate time.Time `db:"expiration_date" json:"expiration_date"`
 	DaysToExpire   int       `json:"days_to_expire"`
 	LastUpdated    time.Time `db:"last_updated" json:"last_updated"`
+	IsActive       bool      `db:"is_active" json:"is_active"`
 }
 
 // AvailableLicenses returns the number of available (unused) licenses
