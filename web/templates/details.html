@@ -129,7 +129,7 @@
                 {{$featureVersion := $feature.Version}}
                 {{$checkoutCount := 0}}
                 {{range $.Users}}
-                    {{if and (eq .FeatureName $featureName) (eq .Version $featureVersion)}}
+                    {{if or (and (eq .FeatureName $featureName) (eq .Version $featureVersion)) (and (eq .FeatureName $featureName) (eq $featureVersion ""))}}
                         {{$checkoutCount = add $checkoutCount 1}}
                     {{end}}
                 {{end}}
@@ -162,7 +162,7 @@
                                 </thead>
                                 <tbody>
                                     {{range $.Users}}
-                                        {{if and (eq .FeatureName $featureName) (eq .Version $featureVersion)}}
+                                        {{if or (and (eq .FeatureName $featureName) (eq .Version $featureVersion)) (and (eq .FeatureName $featureName) (eq $featureVersion ""))}}
                                         <tr>
                                             <td>{{.Username}}</td>
                                             <td>{{.Host}}</td>
