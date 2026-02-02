@@ -20,7 +20,7 @@ A modern license server monitoring application providing real-time tracking, his
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.24 or later
 - License server utilities (lmutil, rlmutil, etc.) installed and in PATH
 - (Optional) PostgreSQL or MySQL for production deployments
 
@@ -33,6 +33,9 @@ cd licet
 
 # Build the application
 go build -o licet ./cmd/server
+
+# Or use make
+make build
 
 # Copy example config
 cp config.example.yaml config.yaml
@@ -256,6 +259,9 @@ GOOS=windows GOARCH=amd64 go build -o licet-windows-amd64.exe ./cmd/server
 | **RLM** (Reprise) | ✅ Fully Implemented | `rlmutil` | Server status, features, users, expiration |
 | **SPM** (Sentinel) | 🚧 Planned | `spmstat` | - |
 | **SESI** (Side Effects) | 🚧 Planned | `sesictrl` | - |
+| **RVL** (RE:Vision Effects) | 🚧 Planned | `rvlstatus` | - |
+| **Tweak** (Tweak Software) | 🚧 Planned | `tlm_server` | - |
+| **Pixar** (Pixar) | 🚧 Planned | - | - |
 
 ## Differences from PHP Version
 
