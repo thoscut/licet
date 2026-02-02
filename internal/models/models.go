@@ -312,3 +312,91 @@ type CapacityPlanningReport struct {
 	// Summary recommendations
 	Recommendations []Recommendation `json:"recommendations"`
 }
+
+// DatabaseStats represents comprehensive database statistics
+type DatabaseStats struct {
+	Type            string       `json:"type"`
+	GeneratedAt     time.Time    `json:"generated_at"`
+	TotalSizeBytes  int64        `json:"total_size_bytes"`
+	TotalSizeHuman  string       `json:"total_size_human"`
+	TotalRows       int64        `json:"total_rows"`
+	Tables          []TableStats `json:"tables"`
+	Recommendations []SpaceRecommendation `json:"recommendations"`
+
+	// SQLite-specific
+	PageSize        int64   `json:"page_size,omitempty"`
+	PageCount       int64   `json:"page_count,omitempty"`
+	FreelistCount   int64   `json:"freelist_count,omitempty"`
+	FragmentationPct float64 `json:"fragmentation_pct,omitempty"`
+	AutoVacuum      string  `json:"auto_vacuum,omitempty"`
+	JournalMode     string  `json:"journal_mode,omitempty"`
+	IntegrityOK     bool    `json:"integrity_ok,omitempty"`
+	WALSizeBytes    int64   `json:"wal_size_bytes,omitempty"`
+
+	// PostgreSQL-specific
+	DeadTuples int64 `json:"dead_tuples,omitempty"`
+}
+
+// TableStats represents statistics for a single database table
+type TableStats struct {
+	Name         string `json:"name"`
+	RowCount     int64  `json:"row_count"`
+	SizeBytes    int64  `json:"size_bytes,omitempty"`
+	SizeHuman    string `json:"size_human,omitempty"`
+	OldestRecord string `json:"oldest_record,omitempty"`
+	NewestRecord string `json:"newest_record,omitempty"`
+}
+
+// SpaceRecommendation represents a database space optimization recommendation
+type SpaceRecommendation struct {
+	Type        string `json:"type"`     // "vacuum", "retention", "cleanup", "checkpoint"
+	Priority    string `json:"priority"` // "high", "medium", "low"
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Impact      string `json:"impact"`
+	Action      string `json:"action"`
+}
+
+// VacuumResult represents the result of a vacuum operation
+type VacuumResult struct {
+	Success         bool          `json:"success"`
+	StartedAt       time.Time     `json:"started_at"`
+	CompletedAt     time.Time     `json:"completed_at"`
+	Duration        time.Duration `json:"duration"`
+	SizeBeforeBytes int64         `json:"size_before_bytes"`
+	SizeAfterBytes  int64         `json:"size_after_bytes"`
+	SpaceSavedBytes int64         `json:"space_saved_bytes"`
+	SpaceSavedHuman string        `json:"space_saved_human"`
+}
+
+// CleanupResult represents the result of a data cleanup operation
+type CleanupResult struct {
+	Success     bool          `json:"success"`
+	TableName   string        `json:"table_name"`
+	RowsDeleted int64         `json:"rows_deleted"`
+	StartedAt   time.Time     `json:"started_at"`
+	CompletedAt time.Time     `json:"completed_at"`
+	Duration    time.Duration `json:"duration"`
+}
+
+// RetentionStats represents data retention statistics
+type RetentionStats struct {
+	// Feature usage records
+	UsageRecordsTotal    int64 `json:"usage_records_total"`
+	UsageRecords30Days   int64 `json:"usage_records_30_days"`
+	UsageRecords90Days   int64 `json:"usage_records_90_days"`
+	UsageRecords365Days  int64 `json:"usage_records_365_days"`
+
+	// License events
+	EventsTotal  int64 `json:"events_total"`
+	Events30Days int64 `json:"events_30_days"`
+
+	// Alerts
+	AlertsTotal int64 `json:"alerts_total"`
+	AlertsSent  int64 `json:"alerts_sent"`
+
+	// Potential savings
+	PotentialSavingsRows  int64  `json:"potential_savings_rows"`
+	PotentialSavingsBytes int64  `json:"potential_savings_bytes"`
+	PotentialSavingsHuman string `json:"potential_savings_human"`
+}

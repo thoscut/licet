@@ -397,3 +397,108 @@ func GetCapacityPlanningReport(enhancedAnalytics *services.EnhancedAnalyticsServ
 		json.NewEncoder(w).Encode(report)
 	}
 }
+
+// GetDatabaseStats returns comprehensive database statistics
+func GetDatabaseStats(dbStats *services.DBStatsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		stats, err := dbStats.GetDatabaseStats(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(stats)
+	}
+}
+
+// GetRetentionStats returns data retention statistics
+func GetRetentionStats(dbStats *services.DBStatsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		stats, err := dbStats.GetRetentionStats(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(stats)
+	}
+}
+
+// VacuumDatabase runs VACUUM to optimize the database
+func VacuumDatabase(dbStats *services.DBStatsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := dbStats.VacuumDatabase(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	}
+}
+
+// CleanupOldData removes data older than the specified number of days
+func CleanupOldData(dbStats *services.DBStatsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		table := r.URL.Query().Get("table")
+		daysStr := r.URL.Query().Get("days")
+
+		if table == "" {
+			http.Error(w, "table parameter required", http.StatusBadRequest)
+			return
+		}
+
+		days := 90 // Default to 90 days
+		if daysStr != "" {
+			if d, err := strconv.Atoi(daysStr); err == nil {
+				days = d
+			}
+		}
+
+		result, err := dbStats.CleanupOldData(r.Context(), table, days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	}
+}
+
+// AnalyzeDatabase runs ANALYZE to update database statistics
+func AnalyzeDatabase(dbStats *services.DBStatsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := dbStats.AnalyzeDatabase(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Database analyzed successfully",
+		})
+	}
+}
+
+// CheckpointWAL runs WAL checkpoint (SQLite only)
+func CheckpointWAL(dbStats *services.DBStatsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := dbStats.CheckpointWAL(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "WAL checkpoint completed successfully",
+		})
+	}
+}

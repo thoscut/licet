@@ -58,6 +58,7 @@ func main() {
 	enhancedAnalytics := services.NewEnhancedAnalyticsService(db, storage, dbType)
 	alertService := services.NewAlertService(db, cfg)
 	collectorService := services.NewCollectorService(db, cfg, query, storage)
+	dbStats := services.NewDBStatsService(db, cfg.Database)
 
 	// Initialize scheduler for background tasks
 	sched := scheduler.New(cfg, collectorService, alertService)
@@ -85,7 +86,7 @@ func main() {
 	}
 
 	// Setup HTTP router
-	r := setupRouter(cfg, query, storage, analytics, enhancedAnalytics, alertService, wsHub, Version)
+	r := setupRouter(cfg, query, storage, analytics, enhancedAnalytics, alertService, dbStats, wsHub, Version)
 
 	// Start HTTP/HTTPS server
 	srv := &http.Server{
@@ -158,7 +159,7 @@ func setupLogging(cfg *config.Config) {
 	}
 }
 
-func setupRouter(cfg *config.Config, query *services.QueryService, storage *services.StorageService, analytics *services.AnalyticsService, enhancedAnalytics *services.EnhancedAnalyticsService, alertService *services.AlertService, wsHub *handlers.WebSocketHub, version string) *chi.Mux {
+func setupRouter(cfg *config.Config, query *services.QueryService, storage *services.StorageService, analytics *services.AnalyticsService, enhancedAnalytics *services.EnhancedAnalyticsService, alertService *services.AlertService, dbStats *services.DBStatsService, wsHub *handlers.WebSocketHub, version string) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middleware
@@ -279,6 +280,7 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 	r.Get("/denials", webHandler.Denials)
 	r.Get("/alerts", webHandler.Alerts)
 	r.Get("/statistics", webHandler.Statistics)
+	r.Get("/database", webHandler.DatabaseStats)
 	r.Get("/settings", webHandler.Settings)
 
 	// API routes
@@ -306,6 +308,10 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 				r.Get("/statistics/enhanced", handlers.GetEnhancedStatistics(enhancedAnalytics))
 				r.Get("/statistics/trends", handlers.GetTrendAnalysis(enhancedAnalytics))
 				r.Get("/statistics/capacity", handlers.GetCapacityPlanningReport(enhancedAnalytics))
+
+				// Database statistics endpoints (cached - read-only)
+				r.Get("/database/stats", handlers.GetDatabaseStats(dbStats))
+				r.Get("/database/retention", handlers.GetRetentionStats(dbStats))
 			})
 		} else {
 			r.Get("/servers", handlers.ListServers(query))
@@ -326,6 +332,10 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 			r.Get("/statistics/enhanced", handlers.GetEnhancedStatistics(enhancedAnalytics))
 			r.Get("/statistics/trends", handlers.GetTrendAnalysis(enhancedAnalytics))
 			r.Get("/statistics/capacity", handlers.GetCapacityPlanningReport(enhancedAnalytics))
+
+			// Database statistics endpoints (not cached)
+			r.Get("/database/stats", handlers.GetDatabaseStats(dbStats))
+			r.Get("/database/retention", handlers.GetRetentionStats(dbStats))
 		}
 
 		// Non-cached endpoints (mutations and health check)
@@ -336,6 +346,12 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 		r.Post("/settings/email", handlers.UpdateEmailSettings(cfg))
 		r.Post("/settings/alerts", handlers.UpdateAlertSettings(cfg))
 		r.Get("/health", handlers.Health(version))
+
+		// Database maintenance endpoints (mutations - require settings to be enabled)
+		r.Post("/database/vacuum", handlers.VacuumDatabase(dbStats))
+		r.Post("/database/cleanup", handlers.CleanupOldData(dbStats))
+		r.Post("/database/analyze", handlers.AnalyzeDatabase(dbStats))
+		r.Post("/database/checkpoint", handlers.CheckpointWAL(dbStats))
 
 		// Export endpoints
 		if cfg.Export.Enabled {
