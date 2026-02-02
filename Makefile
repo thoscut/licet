@@ -2,7 +2,8 @@
 
 # Build variables
 BINARY_NAME=licet
-VERSION?=1.0.0
+# Derive version from git tags/commits (e.g., v1.9.2 or v1.9.2-5-g127f412)
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_DIR=build
 GO_FILES=$(shell find . -name '*.go' -not -path './vendor/*')
 
