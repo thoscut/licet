@@ -388,3 +388,79 @@ arnold v20160712: user2@workstation2 1/0 at 12/01 10:30 (handle: 972)
 		t.Errorf("Expected 2 users, got %d", len(result.Users))
 	}
 }
+
+func TestRLMParser_UserVersionCapture(t *testing.T) {
+	// Test that user checkouts have the correct version captured
+	// This is critical for matching checkouts to features in the UI
+	output := `rlm status on server.example.com (port 5053)
+
+rlm software version v15.2
+
+foundry 5053 Yes 12345
+
+arnold v20160712 license pool status
+count: 10, inuse: 2, exp: 31-Dec-2025
+
+arnold v20160712: user1@workstation1 1/0 at 12/01 09:15 (handle: 971)
+
+maya v2024 license pool status
+count: 5, inuse: 1, exp: permanent
+
+maya v2024: artist@render01 1/0 at 12/01 10:00 (handle: 100)
+`
+
+	parser := NewRLMParser("")
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "server.example.com",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should find 2 features
+	if len(result.Features) != 2 {
+		t.Fatalf("Expected 2 features, got %d", len(result.Features))
+	}
+
+	// Should find 2 users
+	if len(result.Users) != 2 {
+		t.Fatalf("Expected 2 users, got %d", len(result.Users))
+	}
+
+	// Verify user versions match feature versions (critical for UI matching)
+	for _, user := range result.Users {
+		switch user.FeatureName {
+		case "arnold":
+			if user.Version != "v20160712" {
+				t.Errorf("Expected arnold user version 'v20160712', got '%s'", user.Version)
+			}
+		case "maya":
+			if user.Version != "v2024" {
+				t.Errorf("Expected maya user version 'v2024', got '%s'", user.Version)
+			}
+		default:
+			t.Errorf("Unexpected feature name: %s", user.FeatureName)
+		}
+	}
+
+	// Verify that user versions match corresponding feature versions
+	featureVersions := make(map[string]string)
+	for _, f := range result.Features {
+		featureVersions[f.Name] = f.Version
+	}
+
+	for _, user := range result.Users {
+		expectedVersion, ok := featureVersions[user.FeatureName]
+		if !ok {
+			t.Errorf("User feature '%s' not found in features", user.FeatureName)
+			continue
+		}
+		if user.Version != expectedVersion {
+			t.Errorf("User version '%s' does not match feature version '%s' for feature '%s'",
+				user.Version, expectedVersion, user.FeatureName)
+		}
+	}
+}

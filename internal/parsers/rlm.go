@@ -46,7 +46,7 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 	featureHeaderRe := regexp.MustCompile(`(?i)^([\w\+]+)\s+(\w[\d\.]+).*pool.*$`)
 	featureLicenseRe := regexp.MustCompile(`^count:\s+(\d+)[,\s]+.*inuse:\s+(\d+)[,\s]+.*exp:\s+(\d+-\w+-\d{4}|\w+)`)
 	uncountedLicenseRe := regexp.MustCompile(`^UNCOUNTED[,\s]+.*inuse:\s+(\d+)(?:[,\s]+.*exp:\s+(\d+-\w+-\d{4}|\w+))?`)
-	userRe := regexp.MustCompile(`^([\w\+]+)\s+v[\d\.]+:\s+([\w\.\-]+@[\w\-]+)\s+\d+\/\d+\s+at\s+(\d+\/\d+\s+\d+:\d+)`)
+	userRe := regexp.MustCompile(`^([\w\+]+)\s+(v[\d\.]+):\s+([\w\.\-]+@[\w\-]+)\s+\d+\/\d+\s+at\s+(\d+\/\d+\s+\d+:\d+)`)
 
 	// List of known utility/command names that should not be treated as features
 	excludedNames := map[string]bool{
@@ -136,7 +136,8 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 
 		if matches := userRe.FindStringSubmatch(line); matches != nil {
 			featureName := matches[1]
-			userHost := matches[2]
+			version := matches[2]
+			userHost := matches[3]
 			parts := strings.Split(userHost, "@")
 			username := parts[0]
 			host := ""
@@ -144,7 +145,7 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 				host = parts[1]
 			}
 
-			checkedOutStr := matches[3]
+			checkedOutStr := matches[4]
 			checkedOut, err := time.Parse("01/02 15:04", checkedOutStr)
 			if err != nil {
 				log.Debugf("Failed to parse RLM checkout time '%s': %v", checkedOutStr, err)
@@ -160,6 +161,7 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 				Username:       username,
 				Host:           host,
 				CheckedOutAt:   checkedOut,
+				Version:        version,
 			})
 		}
 	}
