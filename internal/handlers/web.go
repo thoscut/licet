@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	log "github.com/sirupsen/logrus"
@@ -133,11 +134,20 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Calculate last updated from stored features
+		var lastUpdated time.Time
+		for _, f := range features {
+			if f.LastUpdated.After(lastUpdated) {
+				lastUpdated = f.LastUpdated
+			}
+		}
+
 		data := h.baseData("Server Details")
 		data["Hostname"] = hostname
 		data["Features"] = features
 		data["Users"] = []interface{}{}
 		data["Error"] = err.Error()
+		data["LastUpdated"] = lastUpdated
 
 		h.render(w, "details.html", data)
 		return
@@ -147,6 +157,7 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 	data["Hostname"] = hostname
 	data["Features"] = result.Features
 	data["Users"] = result.Users
+	data["LastUpdated"] = time.Now() // Data was just fetched live
 
 	h.render(w, "details.html", data)
 }
