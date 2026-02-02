@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - Licet</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-top: 60px; }
+        .stat-card {
+            border-left: 4px solid #007bff;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .stat-card.warning { border-left-color: #ffc107; }
+        .stat-card.danger { border-left-color: #dc3545; }
+        .stat-card.success { border-left-color: #28a745; }
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+        .recommendation-card {
+            border-left: 4px solid #6c757d;
+            margin-bottom: 10px;
+        }
+        .recommendation-card.high { border-left-color: #dc3545; }
+        .recommendation-card.medium { border-left-color: #ffc107; }
+        .recommendation-card.low { border-left-color: #17a2b8; }
+        .btn-action { min-width: 120px; }
+        .progress-thin { height: 5px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">Licet</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    {{if .UtilizationEnabled}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/utilization">Utilization</a>
+                    </li>
+                    {{end}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">Alerts</a>
+                    </li>
+                    {{if .StatisticsEnabled}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/statistics">Statistics</a>
+                    </li>
+                    {{end}}
+                    <li class="nav-item active">
+                        <a class="nav-link" href="/database">Database</a>
+                    </li>
+                    {{if .SettingsEnabled}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">Settings</a>
+                    </li>
+                    {{end}}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1>Database Statistics</h1>
+                <p class="text-muted mb-0">Storage analysis and space optimization for {{.DatabaseType}} database</p>
+            </div>
+            <button class="btn btn-outline-primary" onclick="loadStats()">
+                <span id="refreshIcon">&#8635;</span> Refresh
+            </button>
+        </div>
+
+        <!-- Overview Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-label">Database Size</div>
+                        <div class="stat-value" id="dbSize">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-label">Total Rows</div>
+                        <div class="stat-value" id="totalRows">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card" id="fragmentationCard">
+                    <div class="card-body">
+                        <div class="stat-label">Fragmentation</div>
+                        <div class="stat-value" id="fragmentation">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card" id="integrityCard">
+                    <div class="card-body">
+                        <div class="stat-label">Integrity</div>
+                        <div class="stat-value" id="integrity">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Table Statistics -->
+            <div class="col-md-8 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Table Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="tableStats">
+                            <p class="text-center">
+                                <span class="spinner-border" role="status"></span>
+                                <span class="ms-2">Loading table statistics...</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database Info -->
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Database Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="dbConfig">
+                            <p class="text-center">
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Retention -->
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Data Retention Analysis</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="retentionStats">
+                            <p class="text-center">
+                                <span class="spinner-border" role="status"></span>
+                                <span class="ms-2">Loading retention data...</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Space Optimization Recommendations -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Space Optimization Recommendations</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="recommendations">
+                            <p class="text-center">
+                                <span class="spinner-border" role="status"></span>
+                                <span class="ms-2">Analyzing...</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maintenance Actions -->
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Database Maintenance</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Vacuum Database</h6>
+                                        <p class="card-text small text-muted">Reclaim disk space and defragment the database file.</p>
+                                        <button class="btn btn-primary btn-action" onclick="runVacuum()" id="vacuumBtn">
+                                            Run Vacuum
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Analyze Tables</h6>
+                                        <p class="card-text small text-muted">Update query statistics for better performance.</p>
+                                        <button class="btn btn-secondary btn-action" onclick="runAnalyze()" id="analyzeBtn">
+                                            Run Analyze
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3" id="checkpointSection">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <h6 class="card-title">WAL Checkpoint</h6>
+                                        <p class="card-text small text-muted">Truncate the WAL file (SQLite only).</p>
+                                        <button class="btn btn-secondary btn-action" onclick="runCheckpoint()" id="checkpointBtn">
+                                            Run Checkpoint
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Cleanup Old Data</h6>
+                                        <p class="card-text small text-muted">Remove usage history older than specified days.</p>
+                                        <div class="input-group mb-2">
+                                            <input type="number" class="form-control" id="cleanupDays" value="90" min="30">
+                                            <span class="input-group-text">days</span>
+                                        </div>
+                                        <button class="btn btn-warning btn-action" onclick="runCleanup()" id="cleanupBtn">
+                                            Run Cleanup
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Results -->
+        <div class="row d-none" id="resultSection">
+            <div class="col-12 mb-4">
+                <div class="alert alert-info" id="actionResult">
+                </div>
+            </div>
+        </div>
+
+        <hr class="mt-3">
+        <footer>
+            <p class="text-muted">
+                Licet {{if .Version}}v{{.Version}}{{end}} |
+                <a href="https://github.com/thoscut/licet">GitHub</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="/static/js/bootstrap.min.js"></script>
+    <script>
+        let dbType = '{{.DatabaseType}}';
+
+        window.addEventListener('load', loadStats);
+
+        async function loadStats() {
+            await Promise.all([
+                loadDatabaseStats(),
+                loadRetentionStats()
+            ]);
+        }
+
+        async function loadDatabaseStats() {
+            try {
+                const response = await fetch('/api/v1/database/stats');
+                const stats = await response.json();
+
+                // Update overview cards
+                document.getElementById('dbSize').textContent = stats.total_size_human || 'N/A';
+                document.getElementById('totalRows').textContent = formatNumber(stats.total_rows);
+
+                // Fragmentation
+                const fragPct = stats.fragmentation_pct || 0;
+                document.getElementById('fragmentation').textContent = fragPct.toFixed(1) + '%';
+                const fragCard = document.getElementById('fragmentationCard');
+                if (fragPct > 20) {
+                    fragCard.classList.add('danger');
+                } else if (fragPct > 10) {
+                    fragCard.classList.add('warning');
+                } else {
+                    fragCard.classList.add('success');
+                }
+
+                // Integrity
+                const integrityCard = document.getElementById('integrityCard');
+                if (stats.integrity_ok) {
+                    document.getElementById('integrity').innerHTML = '<span class="text-success">OK</span>';
+                    integrityCard.classList.add('success');
+                } else {
+                    document.getElementById('integrity').innerHTML = '<span class="text-danger">Error</span>';
+                    integrityCard.classList.add('danger');
+                }
+
+                // Table statistics
+                renderTableStats(stats.tables);
+
+                // Database config
+                renderDbConfig(stats);
+
+                // Recommendations
+                renderRecommendations(stats.recommendations);
+
+                // Show/hide checkpoint based on db type
+                if (stats.type !== 'sqlite') {
+                    document.getElementById('checkpointSection').classList.add('d-none');
+                }
+
+            } catch (error) {
+                console.error('Error loading database stats:', error);
+                document.getElementById('dbSize').textContent = 'Error';
+            }
+        }
+
+        async function loadRetentionStats() {
+            try {
+                const response = await fetch('/api/v1/database/retention');
+                const stats = await response.json();
+                renderRetentionStats(stats);
+            } catch (error) {
+                console.error('Error loading retention stats:', error);
+                document.getElementById('retentionStats').innerHTML = '<p class="text-danger">Error loading data</p>';
+            }
+        }
+
+        function renderTableStats(tables) {
+            if (!tables || tables.length === 0) {
+                document.getElementById('tableStats').innerHTML = '<p class="text-muted">No table data available</p>';
+                return;
+            }
+
+            // Find max row count for progress bar scaling
+            const maxRows = Math.max(...tables.map(t => t.row_count));
+
+            let html = '<div class="table-responsive"><table class="table table-sm">';
+            html += '<thead><tr><th>Table</th><th>Rows</th><th>Distribution</th><th>Date Range</th></tr></thead><tbody>';
+
+            tables.forEach(table => {
+                const pct = maxRows > 0 ? (table.row_count / maxRows * 100) : 0;
+                const dateRange = table.oldest_record && table.newest_record
+                    ? `${table.oldest_record} to ${table.newest_record}`
+                    : '-';
+
+                html += `
+                    <tr>
+                        <td><code>${table.name}</code></td>
+                        <td class="text-end">${formatNumber(table.row_count)}</td>
+                        <td style="width: 30%">
+                            <div class="progress progress-thin">
+                                <div class="progress-bar" role="progressbar" style="width: ${pct}%"></div>
+                            </div>
+                        </td>
+                        <td><small class="text-muted">${dateRange}</small></td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table></div>';
+            document.getElementById('tableStats').innerHTML = html;
+        }
+
+        function renderDbConfig(stats) {
+            let html = '<dl class="row mb-0">';
+            html += `<dt class="col-sm-5">Type</dt><dd class="col-sm-7"><span class="badge bg-info">${stats.type}</span></dd>`;
+
+            if (stats.page_size) {
+                html += `<dt class="col-sm-5">Page Size</dt><dd class="col-sm-7">${formatBytes(stats.page_size)}</dd>`;
+            }
+            if (stats.page_count) {
+                html += `<dt class="col-sm-5">Page Count</dt><dd class="col-sm-7">${formatNumber(stats.page_count)}</dd>`;
+            }
+            if (stats.freelist_count) {
+                html += `<dt class="col-sm-5">Free Pages</dt><dd class="col-sm-7">${formatNumber(stats.freelist_count)}</dd>`;
+            }
+            if (stats.journal_mode) {
+                html += `<dt class="col-sm-5">Journal Mode</dt><dd class="col-sm-7">${stats.journal_mode}</dd>`;
+            }
+            if (stats.auto_vacuum) {
+                html += `<dt class="col-sm-5">Auto Vacuum</dt><dd class="col-sm-7">${stats.auto_vacuum}</dd>`;
+            }
+            if (stats.wal_size_bytes > 0) {
+                html += `<dt class="col-sm-5">WAL Size</dt><dd class="col-sm-7">${formatBytes(stats.wal_size_bytes)}</dd>`;
+            }
+
+            html += '</dl>';
+            document.getElementById('dbConfig').innerHTML = html;
+        }
+
+        function renderRetentionStats(stats) {
+            let html = '<div class="mb-3">';
+            html += '<h6>Usage History Records</h6>';
+            html += '<dl class="row mb-0">';
+            html += `<dt class="col-sm-6">Total</dt><dd class="col-sm-6">${formatNumber(stats.usage_records_total)}</dd>`;
+            html += `<dt class="col-sm-6">Last 30 days</dt><dd class="col-sm-6">${formatNumber(stats.usage_records_30_days)}</dd>`;
+            html += `<dt class="col-sm-6">Last 90 days</dt><dd class="col-sm-6">${formatNumber(stats.usage_records_90_days)}</dd>`;
+            html += `<dt class="col-sm-6">Last year</dt><dd class="col-sm-6">${formatNumber(stats.usage_records_365_days)}</dd>`;
+            html += '</dl></div>';
+
+            html += '<div class="mb-3">';
+            html += '<h6>Other Tables</h6>';
+            html += '<dl class="row mb-0">';
+            html += `<dt class="col-sm-6">License Events</dt><dd class="col-sm-6">${formatNumber(stats.events_total)}</dd>`;
+            html += `<dt class="col-sm-6">Alerts (Total/Sent)</dt><dd class="col-sm-6">${formatNumber(stats.alerts_total)} / ${formatNumber(stats.alerts_sent)}</dd>`;
+            html += '</dl></div>';
+
+            if (stats.potential_savings_rows > 0) {
+                html += '<div class="alert alert-info mb-0">';
+                html += `<strong>Potential Savings:</strong> Removing data older than 90 days could delete ${formatNumber(stats.potential_savings_rows)} rows`;
+                if (stats.potential_savings_human) {
+                    html += ` (~${stats.potential_savings_human})`;
+                }
+                html += '</div>';
+            }
+
+            document.getElementById('retentionStats').innerHTML = html;
+        }
+
+        function renderRecommendations(recommendations) {
+            if (!recommendations || recommendations.length === 0) {
+                document.getElementById('recommendations').innerHTML =
+                    '<p class="text-success mb-0">No optimization recommendations - database is well optimized!</p>';
+                return;
+            }
+
+            let html = '';
+            recommendations.forEach(rec => {
+                html += `
+                    <div class="card recommendation-card ${rec.priority}">
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>${rec.title}</strong>
+                                    <span class="badge bg-${getPriorityColor(rec.priority)} ms-2">${rec.priority}</span>
+                                </div>
+                            </div>
+                            <p class="mb-1 small">${rec.description}</p>
+                            <small class="text-muted">Impact: ${rec.impact}</small>
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('recommendations').innerHTML = html;
+        }
+
+        function getPriorityColor(priority) {
+            switch (priority) {
+                case 'high': return 'danger';
+                case 'medium': return 'warning';
+                default: return 'info';
+            }
+        }
+
+        async function runVacuum() {
+            if (!confirm('Run VACUUM? This may take a while for large databases.')) return;
+
+            const btn = document.getElementById('vacuumBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
+
+            try {
+                const response = await fetch('/api/v1/database/vacuum', { method: 'POST' });
+                const result = await response.json();
+
+                if (result.success) {
+                    showResult('success', `Vacuum completed! Space saved: ${result.space_saved_human || '0 B'}. Duration: ${(result.duration / 1000000000).toFixed(2)}s`);
+                    loadStats();
+                } else {
+                    showResult('danger', 'Vacuum failed');
+                }
+            } catch (error) {
+                showResult('danger', 'Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Run Vacuum';
+            }
+        }
+
+        async function runAnalyze() {
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
+
+            try {
+                const response = await fetch('/api/v1/database/analyze', { method: 'POST' });
+                const result = await response.json();
+
+                if (result.success) {
+                    showResult('success', 'Database analyzed successfully');
+                } else {
+                    showResult('danger', 'Analyze failed');
+                }
+            } catch (error) {
+                showResult('danger', 'Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Run Analyze';
+            }
+        }
+
+        async function runCheckpoint() {
+            const btn = document.getElementById('checkpointBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
+
+            try {
+                const response = await fetch('/api/v1/database/checkpoint', { method: 'POST' });
+                const result = await response.json();
+
+                if (result.success) {
+                    showResult('success', 'WAL checkpoint completed');
+                    loadStats();
+                } else {
+                    showResult('danger', 'Checkpoint failed');
+                }
+            } catch (error) {
+                showResult('danger', 'Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Run Checkpoint';
+            }
+        }
+
+        async function runCleanup() {
+            const days = document.getElementById('cleanupDays').value;
+            if (!confirm(`Delete feature_usage data older than ${days} days? This cannot be undone.`)) return;
+
+            const btn = document.getElementById('cleanupBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
+
+            try {
+                const response = await fetch(`/api/v1/database/cleanup?table=feature_usage&days=${days}`, { method: 'POST' });
+                const result = await response.json();
+
+                if (result.success) {
+                    showResult('success', `Cleanup completed! Deleted ${formatNumber(result.rows_deleted)} rows.`);
+                    loadStats();
+                } else {
+                    showResult('danger', 'Cleanup failed');
+                }
+            } catch (error) {
+                showResult('danger', 'Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Run Cleanup';
+            }
+        }
+
+        function showResult(type, message) {
+            const section = document.getElementById('resultSection');
+            const alert = document.getElementById('actionResult');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            section.classList.remove('d-none');
+            setTimeout(() => section.classList.add('d-none'), 10000);
+        }
+
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '0';
+            return num.toLocaleString();
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Refresh every 60 seconds
+        setInterval(loadStats, 60000);
+    </script>
+</body>
+</html>

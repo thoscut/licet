@@ -288,3 +288,14 @@ func (h *WebHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 	data := h.baseData("Statistics Dashboard")
 	h.render(w, "statistics.html", data)
 }
+
+func (h *WebHandler) DatabaseStats(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.Server.SettingsEnabled {
+		http.Error(w, "Database stats page requires settings to be enabled", http.StatusForbidden)
+		return
+	}
+
+	data := h.baseData("Database Statistics")
+	data["DatabaseType"] = h.cfg.Database.Type
+	h.render(w, "database_stats.html", data)
+}
