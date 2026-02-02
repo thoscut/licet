@@ -63,8 +63,8 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 	// Permanent: FEATURE VERSION COUNT VENDOR permanent
 	expirationPermRe := regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\w+)\s+(permanent)`)
 
-	// User pattern
-	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v\d+\.\d+\).*start\s+(\w+\s+\d+/\d+\s+\d+:\d+)`)
+	// User pattern - capture version for accurate per-version license counts
+	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v([^\)]+)\).*start\s+(\w+\s+\d+/\d+\s+\d+:\d+)`)
 
 	currentFeature := ""
 	featureMap := make(map[string]*models.Feature)
@@ -196,23 +196,14 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			// Create a unique key for each license pool: name + version + expiration
 			key := fmt.Sprintf("%s|%s|%s", featureName, version, expDate.Format("2006-01-02"))
 
-			// Get usage data if available
-			var usedLicenses int
-			if usage, hasUsage := usageMap[featureName]; hasUsage {
-				// Proportionally distribute usage based on license count
-				usedLicenses = (usage.used * numLicenses) / usage.total
-				if usedLicenses > numLicenses {
-					usedLicenses = numLicenses
-				}
-			}
-
+			// Create feature with UsedLicenses = 0; will be updated after user parsing
 			featureMap[key] = &models.Feature{
 				ServerHostname: result.Status.Hostname,
 				Name:           featureName,
 				Version:        version,
 				VendorDaemon:   vendorDaemon,
 				TotalLicenses:  numLicenses,
-				UsedLicenses:   usedLicenses,
+				UsedLicenses:   0,
 				ExpirationDate: expDate,
 				LastUpdated:    time.Now(),
 			}
@@ -223,7 +214,8 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 		if matches := userRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
 			username := strings.TrimSpace(matches[1])
 			host := strings.TrimSpace(matches[2])
-			checkedOutStr := strings.TrimSpace(matches[4])
+			version := strings.TrimSpace(matches[4])
+			checkedOutStr := strings.TrimSpace(matches[5])
 
 			// Parse the checkout time (format: "Mon 1/2 15:04")
 			checkedOut, err := time.Parse("Mon 1/2 15:04", checkedOutStr)
@@ -241,6 +233,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 				Username:       username,
 				Host:           host,
 				CheckedOutAt:   checkedOut,
+				Version:        version,
 			})
 		}
 	}
@@ -266,6 +259,42 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 				LastUpdated:    time.Now(),
 			}
 		}
+	}
+
+	// Calculate used licenses per feature+version based on actual user counts
+	// Count users per feature name + version
+	userCountByFeatureVersion := make(map[string]int)
+	userCountByFeatureName := make(map[string]int)
+	hasUsersForFeature := make(map[string]bool)
+	for _, user := range result.Users {
+		key := fmt.Sprintf("%s|%s", user.FeatureName, user.Version)
+		userCountByFeatureVersion[key]++
+		userCountByFeatureName[user.FeatureName]++
+		hasUsersForFeature[user.FeatureName] = true
+	}
+
+	// Update UsedLicenses for each feature based on actual user counts
+	for key, feature := range featureMap {
+		// Try to match by feature name + version first
+		userKey := fmt.Sprintf("%s|%s", feature.Name, feature.Version)
+		if count, ok := userCountByFeatureVersion[userKey]; ok {
+			feature.UsedLicenses = count
+		} else if feature.Version == "" {
+			// For features without version (from usageMap only), use total count by feature name
+			if count, ok := userCountByFeatureName[feature.Name]; ok {
+				feature.UsedLicenses = count
+			}
+		} else if !hasUsersForFeature[feature.Name] {
+			// No user checkout lines for this feature - fall back to usageMap proportional distribution
+			if usage, hasUsage := usageMap[feature.Name]; hasUsage && usage.total > 0 {
+				usedLicenses := (usage.used * feature.TotalLicenses) / usage.total
+				if usedLicenses > feature.TotalLicenses {
+					usedLicenses = feature.TotalLicenses
+				}
+				feature.UsedLicenses = usedLicenses
+			}
+		}
+		featureMap[key] = feature
 	}
 
 	// Convert feature map to slice

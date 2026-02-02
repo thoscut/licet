@@ -423,39 +423,42 @@ feature_gamma 2023.1 25 myvendor permanent
 		featureMap[result.Features[i].Name] = &result.Features[i]
 	}
 
-	// Check feature_alpha
+	// Check feature_alpha (2 users in the test data for v2023.1)
 	if f, ok := featureMap["feature_alpha"]; !ok {
 		t.Error("feature_alpha not found")
 	} else {
 		if f.TotalLicenses != 100 {
 			t.Errorf("feature_alpha: expected 100 total licenses, got %d", f.TotalLicenses)
 		}
-		if f.UsedLicenses != 45 {
-			t.Errorf("feature_alpha: expected 45 used licenses, got %d", f.UsedLicenses)
+		// UsedLicenses is now calculated from actual user checkouts, not "Users of" line
+		if f.UsedLicenses != 2 {
+			t.Errorf("feature_alpha: expected 2 used licenses (actual checkouts), got %d", f.UsedLicenses)
 		}
 	}
 
-	// Check feature_beta
+	// Check feature_beta (1 user in the test data for v2023.1)
 	if f, ok := featureMap["feature_beta"]; !ok {
 		t.Error("feature_beta not found")
 	} else {
 		if f.TotalLicenses != 50 {
 			t.Errorf("feature_beta: expected 50 total licenses, got %d", f.TotalLicenses)
 		}
-		if f.UsedLicenses != 12 {
-			t.Errorf("feature_beta: expected 12 used licenses, got %d", f.UsedLicenses)
+		// UsedLicenses is now calculated from actual user checkouts, not "Users of" line
+		if f.UsedLicenses != 1 {
+			t.Errorf("feature_beta: expected 1 used license (actual checkouts), got %d", f.UsedLicenses)
 		}
 	}
 
-	// Check feature_gamma
+	// Check feature_gamma (1 user in the test data for v2023.1)
 	if f, ok := featureMap["feature_gamma"]; !ok {
 		t.Error("feature_gamma not found")
 	} else {
 		if f.TotalLicenses != 25 {
 			t.Errorf("feature_gamma: expected 25 total licenses, got %d", f.TotalLicenses)
 		}
-		if f.UsedLicenses != 5 {
-			t.Errorf("feature_gamma: expected 5 used licenses, got %d", f.UsedLicenses)
+		// UsedLicenses is now calculated from actual user checkouts, not "Users of" line
+		if f.UsedLicenses != 1 {
+			t.Errorf("feature_gamma: expected 1 used license (actual checkouts), got %d", f.UsedLicenses)
 		}
 	}
 
@@ -463,6 +466,96 @@ feature_gamma 2023.1 25 myvendor permanent
 	for name, feature := range featureMap {
 		if feature.ExpirationDate.IsZero() {
 			t.Errorf("%s: expiration date not set", name)
+		}
+	}
+}
+
+func TestFlexLMParser_UserVersionCapture(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of feature1:  (Total of 15 licenses issued;  Total of 5 licenses in use)
+
+  "feature1" v2023.1, vendor: myvendor
+  floating license
+
+    user1 machine1 /dev/tty (v2023.1) (server.example.com/27000 1234), start Mon 11/30 9:00
+    user2 machine2 /dev/tty (v2023.1) (server.example.com/27000 1235), start Mon 11/30 10:15
+    user3 machine3 /dev/tty (v2024.0) (server.example.com/27000 1236), start Tue 12/1 8:00
+
+License files:
+feature1 2023.1 10 myvendor 31-dec-2025
+feature1 2024.0 5 myvendor 30-jun-2026
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Verify users have correct version captured
+	if len(result.Users) != 3 {
+		t.Fatalf("Expected 3 users, got %d", len(result.Users))
+	}
+
+	userVersions := make(map[string]string)
+	for _, user := range result.Users {
+		userVersions[user.Username] = user.Version
+	}
+
+	if userVersions["user1"] != "2023.1" {
+		t.Errorf("Expected user1 version '2023.1', got '%s'", userVersions["user1"])
+	}
+	if userVersions["user2"] != "2023.1" {
+		t.Errorf("Expected user2 version '2023.1', got '%s'", userVersions["user2"])
+	}
+	if userVersions["user3"] != "2024.0" {
+		t.Errorf("Expected user3 version '2024.0', got '%s'", userVersions["user3"])
+	}
+
+	// Verify license counts per version
+	if len(result.Features) != 2 {
+		t.Fatalf("Expected 2 features (one per version), got %d", len(result.Features))
+	}
+
+	featureMap := make(map[string]*models.Feature)
+	for i := range result.Features {
+		key := result.Features[i].Name + "|" + result.Features[i].Version
+		featureMap[key] = &result.Features[i]
+	}
+
+	// feature1 v2023.1 should have 2 users (user1, user2)
+	if f, ok := featureMap["feature1|2023.1"]; !ok {
+		t.Error("feature1 v2023.1 not found")
+	} else {
+		if f.TotalLicenses != 10 {
+			t.Errorf("feature1 v2023.1: expected 10 total licenses, got %d", f.TotalLicenses)
+		}
+		if f.UsedLicenses != 2 {
+			t.Errorf("feature1 v2023.1: expected 2 used licenses, got %d", f.UsedLicenses)
+		}
+	}
+
+	// feature1 v2024.0 should have 1 user (user3)
+	if f, ok := featureMap["feature1|2024.0"]; !ok {
+		t.Error("feature1 v2024.0 not found")
+	} else {
+		if f.TotalLicenses != 5 {
+			t.Errorf("feature1 v2024.0: expected 5 total licenses, got %d", f.TotalLicenses)
+		}
+		if f.UsedLicenses != 1 {
+			t.Errorf("feature1 v2024.0: expected 1 used license, got %d", f.UsedLicenses)
 		}
 	}
 }
