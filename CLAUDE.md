@@ -572,25 +572,30 @@ Debug output includes:
 
 Based on recent commit history:
 
-1. **RLM Parser Improvements** (commits e0220a0, 51cad50)
+1. **FlexLM Parser Checkout Fixes** (branch claude/fix-flexlm-checkout-parsing-rrHnQ)
+   - Fixed checkout parsing for versions without 'v' prefix: `(2023.1)` vs `(v2023.1)`
+   - Fixed checkout date parsing to handle year in date: `Mon 1/2/24` or `Mon 1/2/2024`
+   - Fixed template to match checkouts by feature name only (client version often differs from license version)
+
+2. **RLM Parser Improvements** (commits e0220a0, 51cad50)
    - Fixed feature header parsing to match actual RLM output format
    - Fixed parser excluding utility names from features
    - Improved license checkout display
 
-2. **UI Enhancements** (commits e503a8b, 8b8bc7d)
+3. **UI Enhancements** (commits e503a8b, 8b8bc7d)
    - Added version display to server details page
    - Compact layout improvements
    - Checkout filter functionality
    - Checkout time display with sorting
 
-3. **Settings Page** (commit e2b201a)
+4. **Settings Page** (commit e2b201a)
    - Fixed settings page enable configuration
    - Proper mapstructure tags for config binding
 
-4. **License Expiration Page** (commit 88ca47d)
+5. **License Expiration Page** (commit 88ca47d)
    - Fixed display issues on expiration page
 
-5. **.gitignore Updates** (commit d05b9ea)
+6. **.gitignore Updates** (commit d05b9ea)
    - Added licet binary to .gitignore
 
 ## Code Conventions and Patterns

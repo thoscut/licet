@@ -676,6 +676,98 @@ feature1 2023.1 10 myvendor 31-dec-2025
 	}
 }
 
+func TestFlexLMParser_AnsysFormat(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Real-world Ansys FlexLM format with 4 fields before version (including process ID)
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27003@flex-1.example.de
+    flex-1.example.de: license server UP v11.18.1
+
+Feature usage info:
+
+Users of cfd_preppost:  (Total of 12 licenses issued;  Total of 1 license in use)
+
+  "cfd_preppost" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+    sebastian.mamm caews19.example.de caews19.example.de 3068 (v2025.0506) (flex-1/27003 236), start Thu 1/29 11:39
+
+Users of cfd_preppost_pro:  (Total of 12 licenses issued;  Total of 1 license in use)
+
+  "cfd_preppost_pro" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+    sebastian.mann caews19.example.de caews19.example.de 3068 (v2025.0506) (flex-1/27003 4023), start Thu 1/29 11:39
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27003@flex-1.example.de",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Verify users are parsed correctly
+	if len(result.Users) != 2 {
+		t.Fatalf("Expected 2 users, got %d", len(result.Users))
+	}
+
+	// Verify first user
+	if result.Users[0].Username != "sebastian.mamm" {
+		t.Errorf("Expected first user 'sebastian.mamm', got '%s'", result.Users[0].Username)
+	}
+	if result.Users[0].FeatureName != "cfd_preppost" {
+		t.Errorf("Expected first user feature 'cfd_preppost', got '%s'", result.Users[0].FeatureName)
+	}
+	if result.Users[0].Version != "2025.0506" {
+		t.Errorf("Expected first user version '2025.0506', got '%s'", result.Users[0].Version)
+	}
+
+	// Verify second user
+	if result.Users[1].Username != "sebastian.mann" {
+		t.Errorf("Expected second user 'sebastian.mann', got '%s'", result.Users[1].Username)
+	}
+	if result.Users[1].FeatureName != "cfd_preppost_pro" {
+		t.Errorf("Expected second user feature 'cfd_preppost_pro', got '%s'", result.Users[1].FeatureName)
+	}
+
+	// Verify features have correct UsedLicenses
+	if len(result.Features) != 2 {
+		t.Fatalf("Expected 2 features, got %d", len(result.Features))
+	}
+
+	featureMap := make(map[string]*models.Feature)
+	for i := range result.Features {
+		featureMap[result.Features[i].Name] = &result.Features[i]
+	}
+
+	if f, ok := featureMap["cfd_preppost"]; !ok {
+		t.Error("cfd_preppost feature not found")
+	} else {
+		if f.UsedLicenses != 1 {
+			t.Errorf("cfd_preppost: expected 1 used license, got %d", f.UsedLicenses)
+		}
+		if f.TotalLicenses != 12 {
+			t.Errorf("cfd_preppost: expected 12 total licenses, got %d", f.TotalLicenses)
+		}
+	}
+
+	if f, ok := featureMap["cfd_preppost_pro"]; !ok {
+		t.Error("cfd_preppost_pro feature not found")
+	} else {
+		if f.UsedLicenses != 1 {
+			t.Errorf("cfd_preppost_pro: expected 1 used license, got %d", f.UsedLicenses)
+		}
+	}
+}
+
 func TestFlexLMParser_ErrorConditions(t *testing.T) {
 	testCases := []struct {
 		name           string
