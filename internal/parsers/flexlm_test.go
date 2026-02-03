@@ -560,6 +560,61 @@ feature1 2024.0 5 myvendor 30-jun-2026
 	}
 }
 
+func TestFlexLMParser_UserCheckoutWithoutVPrefix(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Many FlexLM servers output version without "v" prefix: (2023.1) instead of (v2023.1)
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of feature1:  (Total of 10 licenses issued;  Total of 3 licenses in use)
+
+  "feature1" v2023.1, vendor: myvendor
+  floating license
+
+    user1 machine1 /dev/tty (2023.1) (server.example.com/27000 1234), start Mon 1/2 9:00
+    user2 machine2 /dev/tty (2023.1) (server.example.com/27000 1235), start Mon 1/2 10:15
+    user3 machine3 /dev/tty (2024.0) (server.example.com/27000 1236), start Tue 1/3 8:00
+
+License files:
+feature1 2023.1 10 myvendor 31-dec-2025
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Verify users are parsed correctly even without "v" prefix
+	if len(result.Users) != 3 {
+		t.Fatalf("Expected 3 users, got %d (checkout lines without 'v' prefix not parsed)", len(result.Users))
+	}
+
+	userVersions := make(map[string]string)
+	for _, user := range result.Users {
+		userVersions[user.Username] = user.Version
+	}
+
+	if userVersions["user1"] != "2023.1" {
+		t.Errorf("Expected user1 version '2023.1', got '%s'", userVersions["user1"])
+	}
+	if userVersions["user2"] != "2023.1" {
+		t.Errorf("Expected user2 version '2023.1', got '%s'", userVersions["user2"])
+	}
+	if userVersions["user3"] != "2024.0" {
+		t.Errorf("Expected user3 version '2024.0', got '%s'", userVersions["user3"])
+	}
+}
+
 func TestFlexLMParser_ErrorConditions(t *testing.T) {
 	testCases := []struct {
 		name           string

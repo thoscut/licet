@@ -64,7 +64,8 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 	expirationPermRe := regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\w+)\s+(permanent)`)
 
 	// User pattern - capture version for accurate per-version license counts
-	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v([^\)]+)\).*start\s+(\w+\s+\d+/\d+\s+\d+:\d+)`)
+	// Note: "v" prefix is optional as some FlexLM servers output (2023.1) instead of (v2023.1)
+	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v?([^\)]+)\).*start\s+(\w+\s+\d+/\d+\s+\d+:\d+)`)
 
 	currentFeature := ""
 	featureMap := make(map[string]*models.Feature)

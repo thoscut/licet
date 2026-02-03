@@ -315,23 +315,23 @@ type CapacityPlanningReport struct {
 
 // DatabaseStats represents comprehensive database statistics
 type DatabaseStats struct {
-	Type            string       `json:"type"`
-	GeneratedAt     time.Time    `json:"generated_at"`
-	TotalSizeBytes  int64        `json:"total_size_bytes"`
-	TotalSizeHuman  string       `json:"total_size_human"`
-	TotalRows       int64        `json:"total_rows"`
-	Tables          []TableStats `json:"tables"`
+	Type            string                `json:"type"`
+	GeneratedAt     time.Time             `json:"generated_at"`
+	TotalSizeBytes  int64                 `json:"total_size_bytes"`
+	TotalSizeHuman  string                `json:"total_size_human"`
+	TotalRows       int64                 `json:"total_rows"`
+	Tables          []TableStats          `json:"tables"`
 	Recommendations []SpaceRecommendation `json:"recommendations"`
 
 	// SQLite-specific
-	PageSize        int64   `json:"page_size,omitempty"`
-	PageCount       int64   `json:"page_count,omitempty"`
-	FreelistCount   int64   `json:"freelist_count,omitempty"`
+	PageSize         int64   `json:"page_size,omitempty"`
+	PageCount        int64   `json:"page_count,omitempty"`
+	FreelistCount    int64   `json:"freelist_count,omitempty"`
 	FragmentationPct float64 `json:"fragmentation_pct,omitempty"`
-	AutoVacuum      string  `json:"auto_vacuum,omitempty"`
-	JournalMode     string  `json:"journal_mode,omitempty"`
-	IntegrityOK     bool    `json:"integrity_ok,omitempty"`
-	WALSizeBytes    int64   `json:"wal_size_bytes,omitempty"`
+	AutoVacuum       string  `json:"auto_vacuum,omitempty"`
+	JournalMode      string  `json:"journal_mode,omitempty"`
+	IntegrityOK      bool    `json:"integrity_ok,omitempty"`
+	WALSizeBytes     int64   `json:"wal_size_bytes,omitempty"`
 
 	// PostgreSQL-specific
 	DeadTuples int64 `json:"dead_tuples,omitempty"`
@@ -382,10 +382,10 @@ type CleanupResult struct {
 // RetentionStats represents data retention statistics
 type RetentionStats struct {
 	// Feature usage records
-	UsageRecordsTotal    int64 `json:"usage_records_total"`
-	UsageRecords30Days   int64 `json:"usage_records_30_days"`
-	UsageRecords90Days   int64 `json:"usage_records_90_days"`
-	UsageRecords365Days  int64 `json:"usage_records_365_days"`
+	UsageRecordsTotal   int64 `json:"usage_records_total"`
+	UsageRecords30Days  int64 `json:"usage_records_30_days"`
+	UsageRecords90Days  int64 `json:"usage_records_90_days"`
+	UsageRecords365Days int64 `json:"usage_records_365_days"`
 
 	// License events
 	EventsTotal  int64 `json:"events_total"`
