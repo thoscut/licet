@@ -615,6 +615,67 @@ feature1 2023.1 10 myvendor 31-dec-2025
 	}
 }
 
+func TestFlexLMParser_UserCheckoutWithYearInDate(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Some FlexLM servers include year in checkout date: "Mon 1/2/24 9:00" or "Mon 1/2/2024 9:00"
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of feature1:  (Total of 10 licenses issued;  Total of 3 licenses in use)
+
+  "feature1" v2023.1, vendor: myvendor
+  floating license
+
+    user1 machine1 /dev/tty (v2023.1) (server.example.com/27000 1234), start Mon 1/2/24 9:00
+    user2 machine2 /dev/tty (v2023.1) (server.example.com/27000 1235), start Mon 1/2/2024 10:15
+    user3 machine3 /dev/tty (v2024.0) (server.example.com/27000 1236), start Tue 1/3 8:00
+
+License files:
+feature1 2023.1 10 myvendor 31-dec-2025
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Verify all 3 users are parsed correctly with different date formats
+	if len(result.Users) != 3 {
+		t.Fatalf("Expected 3 users, got %d (checkout lines with year in date not parsed)", len(result.Users))
+	}
+
+	// Verify user1 (2-digit year format)
+	if result.Users[0].Username != "user1" {
+		t.Errorf("Expected first user to be 'user1', got '%s'", result.Users[0].Username)
+	}
+	if result.Users[0].CheckedOutAt.Year() != 2024 {
+		t.Errorf("Expected user1 checkout year 2024, got %d", result.Users[0].CheckedOutAt.Year())
+	}
+
+	// Verify user2 (4-digit year format)
+	if result.Users[1].Username != "user2" {
+		t.Errorf("Expected second user to be 'user2', got '%s'", result.Users[1].Username)
+	}
+	if result.Users[1].CheckedOutAt.Year() != 2024 {
+		t.Errorf("Expected user2 checkout year 2024, got %d", result.Users[1].CheckedOutAt.Year())
+	}
+
+	// Verify user3 (no year format - should be adjusted to current year)
+	if result.Users[2].Username != "user3" {
+		t.Errorf("Expected third user to be 'user3', got '%s'", result.Users[2].Username)
+	}
+}
+
 func TestFlexLMParser_ErrorConditions(t *testing.T) {
 	testCases := []struct {
 		name           string

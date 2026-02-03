@@ -65,7 +65,8 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 	// User pattern - capture version for accurate per-version license counts
 	// Note: "v" prefix is optional as some FlexLM servers output (2023.1) instead of (v2023.1)
-	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v?([^\)]+)\).*start\s+(\w+\s+\d+/\d+\s+\d+:\d+)`)
+	// Date format can be "Mon 1/2 9:00" or "Mon 1/2/24 9:00" or "Mon 1/2/2024 9:00"
+	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v?([^\)]+)\).*start\s+(\w+\s+\d+/\d+(?:/\d+)?\s+\d+:\d+)`)
 
 	currentFeature := ""
 	featureMap := make(map[string]*models.Feature)
@@ -218,15 +219,30 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			version := strings.TrimSpace(matches[4])
 			checkedOutStr := strings.TrimSpace(matches[5])
 
-			// Parse the checkout time (format: "Mon 1/2 15:04")
-			checkedOut, err := time.Parse("Mon 1/2 15:04", checkedOutStr)
+			// Parse the checkout time - try multiple formats
+			// FlexLM can output: "Mon 1/2 15:04", "Mon 1/2/24 15:04", or "Mon 1/2/2024 15:04"
+			var checkedOut time.Time
+			var err error
+			timeFormats := []string{
+				"Mon 1/2/2006 15:04", // Full year: Mon 1/2/2024 15:04
+				"Mon 1/2/06 15:04",   // 2-digit year: Mon 1/2/24 15:04
+				"Mon 1/2 15:04",      // No year: Mon 1/2 15:04
+			}
+			for _, format := range timeFormats {
+				checkedOut, err = time.Parse(format, checkedOutStr)
+				if err == nil {
+					break
+				}
+			}
 			if err != nil {
 				log.Debugf("Failed to parse checkout time '%s': %v", checkedOutStr, err)
 				continue
 			}
 
-			// Adjust to current year since FlexLM doesn't include year
-			checkedOut = AdjustCheckoutTimeToCurrentYear(checkedOut)
+			// Adjust to current year if no year was in the format (year would be 0)
+			if checkedOut.Year() == 0 {
+				checkedOut = AdjustCheckoutTimeToCurrentYear(checkedOut)
+			}
 
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,
