@@ -810,6 +810,460 @@ ans_act 2026.0630 15 ansyslmd permanent
 	}
 }
 
+func TestFlexLMParser_MultipleLicensePoolsDifferentVersions(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Test that multiple license pools with different versions are kept SEPARATE
+	// (not aggregated like same version/expiration)
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of myfeature:  (Total of 30 licenses issued;  Total of 5 licenses in use)
+
+License files:
+myfeature 2023.1 10 myvendor 31-dec-2025
+myfeature 2024.0 20 myvendor 31-dec-2025
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should have 2 separate features (different versions)
+	if len(result.Features) != 2 {
+		t.Fatalf("Expected 2 features (different versions kept separate), got %d", len(result.Features))
+	}
+
+	// Verify each version pool has correct count
+	versionCounts := make(map[string]int)
+	for _, f := range result.Features {
+		if f.Name == "myfeature" {
+			versionCounts[f.Version] = f.TotalLicenses
+		}
+	}
+
+	if versionCounts["2023.1"] != 10 {
+		t.Errorf("Expected version 2023.1 to have 10 licenses, got %d", versionCounts["2023.1"])
+	}
+	if versionCounts["2024.0"] != 20 {
+		t.Errorf("Expected version 2024.0 to have 20 licenses, got %d", versionCounts["2024.0"])
+	}
+}
+
+func TestFlexLMParser_MultipleLicensePoolsDifferentExpirations(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Test that multiple license pools with same version but different expirations are kept SEPARATE
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of myfeature:  (Total of 25 licenses issued;  Total of 3 licenses in use)
+
+License files:
+myfeature 2023.1 10 myvendor 31-dec-2025
+myfeature 2023.1 15 myvendor 30-jun-2026
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should have 2 separate features (different expirations)
+	if len(result.Features) != 2 {
+		t.Fatalf("Expected 2 features (different expirations kept separate), got %d", len(result.Features))
+	}
+
+	// Verify each expiration pool has correct count
+	expectedDate1, _ := time.Parse("2-Jan-2006", "31-Dec-2025")
+	expectedDate2, _ := time.Parse("2-Jan-2006", "30-Jun-2026")
+
+	expirationCounts := make(map[string]int)
+	for _, f := range result.Features {
+		if f.Name == "myfeature" {
+			expirationCounts[f.ExpirationDate.Format("2006-01-02")] = f.TotalLicenses
+		}
+	}
+
+	if expirationCounts[expectedDate1.Format("2006-01-02")] != 10 {
+		t.Errorf("Expected Dec 2025 pool to have 10 licenses, got %d", expirationCounts[expectedDate1.Format("2006-01-02")])
+	}
+	if expirationCounts[expectedDate2.Format("2006-01-02")] != 15 {
+		t.Errorf("Expected Jun 2026 pool to have 15 licenses, got %d", expirationCounts[expectedDate2.Format("2006-01-02")])
+	}
+}
+
+func TestFlexLMParser_CheckoutMatchingByFeatureName(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Test that checkouts are matched to features by name when client version differs from license version
+	// This is critical for correct UsedLicenses counting
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of ans_act:  (Total of 25 licenses issued;  Total of 3 licenses in use)
+
+  "ans_act" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+    user1 host1.example.de host1.example.de 1234 (v2025.0506) (server/27000 100), start Mon 1/15 9:00
+    user2 host2.example.de host2.example.de 2345 (v2024.0101) (server/27000 101), start Mon 1/15 10:00
+    user3 host3.example.de host3.example.de 3456 (v2025.0506) (server/27000 102), start Mon 1/15 11:00
+
+License files:
+ans_act 2026.0630 25 ansyslmd permanent
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should have 1 feature
+	if len(result.Features) != 1 {
+		t.Fatalf("Expected 1 feature, got %d", len(result.Features))
+	}
+
+	feature := result.Features[0]
+
+	// All 3 users should be counted even though their client versions (2025.0506, 2024.0101)
+	// differ from the license version (2026.0630)
+	if feature.UsedLicenses != 3 {
+		t.Errorf("Expected 3 used licenses (all users matched by feature name), got %d", feature.UsedLicenses)
+	}
+
+	// Verify all users have the license version (not client version)
+	if len(result.Users) != 3 {
+		t.Fatalf("Expected 3 users, got %d", len(result.Users))
+	}
+	for _, user := range result.Users {
+		if user.Version != "2026.0630" {
+			t.Errorf("Expected user %s to have license version '2026.0630', got '%s'", user.Username, user.Version)
+		}
+	}
+}
+
+func TestFlexLMParser_UsedLicensesProportionalFallback(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Test that when there are no checkout lines, UsedLicenses is calculated proportionally
+	// from the "Users of" line based on pool size
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of myfeature:  (Total of 100 licenses issued;  Total of 50 licenses in use)
+
+License files:
+myfeature 2023.1 60 myvendor 31-dec-2025
+myfeature 2024.0 40 myvendor 31-dec-2026
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should have 2 features (different versions/expirations)
+	if len(result.Features) != 2 {
+		t.Fatalf("Expected 2 features, got %d", len(result.Features))
+	}
+
+	// Without checkout lines, used licenses should be proportionally distributed
+	// Pool with 60 licenses: 50 * 60 / 100 = 30 used
+	// Pool with 40 licenses: 50 * 40 / 100 = 20 used
+	for _, f := range result.Features {
+		if f.Version == "2023.1" {
+			expectedUsed := (50 * 60) / 100 // = 30
+			if f.UsedLicenses != expectedUsed {
+				t.Errorf("Version 2023.1: expected %d used licenses (proportional), got %d", expectedUsed, f.UsedLicenses)
+			}
+		}
+		if f.Version == "2024.0" {
+			expectedUsed := (50 * 40) / 100 // = 20
+			if f.UsedLicenses != expectedUsed {
+				t.Errorf("Version 2024.0: expected %d used licenses (proportional), got %d", expectedUsed, f.UsedLicenses)
+			}
+		}
+	}
+}
+
+func TestFlexLMParser_InlineVersionParsingVariants(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Test various inline version formats that appear after "Users of" line
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of feature_a:  (Total of 10 licenses issued;  Total of 1 license in use)
+
+  "feature_a" v2023.1, vendor: myvendor, expiry: 31-dec-2025
+  floating license
+
+    user1 host1 /dev/tty (v2022.0) (server/27000 100), start Mon 1/15 9:00
+
+Users of feature_b:  (Total of 10 licenses issued;  Total of 1 license in use)
+
+  "feature_b" v2024.0506, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:12345
+  floating license
+
+    user2 host2 /dev/tty (v2023.0101) (server/27000 101), start Mon 1/15 10:00
+
+Users of feature_c:  (Total of 10 licenses issued;  Total of 1 license in use)
+
+  "feature_c" v1.0, vendor: simplevendor
+  floating license
+
+    user3 host3 /dev/tty (v0.9) (server/27000 102), start Mon 1/15 11:00
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should have 3 features
+	if len(result.Features) != 3 {
+		t.Fatalf("Expected 3 features, got %d", len(result.Features))
+	}
+
+	// All users should have their respective LICENSE versions, not client versions
+	expectedVersions := map[string]string{
+		"user1": "2023.1",
+		"user2": "2024.0506",
+		"user3": "1.0",
+	}
+
+	if len(result.Users) != 3 {
+		t.Fatalf("Expected 3 users, got %d", len(result.Users))
+	}
+
+	for _, user := range result.Users {
+		expected := expectedVersions[user.Username]
+		if user.Version != expected {
+			t.Errorf("User %s: expected license version '%s', got '%s'", user.Username, expected, user.Version)
+		}
+	}
+
+	// Verify features have correct versions from inline parsing
+	featureVersions := make(map[string]string)
+	for _, f := range result.Features {
+		featureVersions[f.Name] = f.Version
+	}
+
+	if featureVersions["feature_a"] != "2023.1" {
+		t.Errorf("feature_a: expected version '2023.1', got '%s'", featureVersions["feature_a"])
+	}
+	if featureVersions["feature_b"] != "2024.0506" {
+		t.Errorf("feature_b: expected version '2024.0506', got '%s'", featureVersions["feature_b"])
+	}
+	if featureVersions["feature_c"] != "1.0" {
+		t.Errorf("feature_c: expected version '1.0', got '%s'", featureVersions["feature_c"])
+	}
+}
+
+func TestFlexLMParser_ComprehensiveRealWorldAnsys(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Comprehensive test with real-world Ansys FlexLM output format
+	// Tests: multiple features, inline versions, client version differs from license version,
+	// multiple license file entries with same key (aggregation)
+	output := `lmutil - Copyright (c) 1989-2023 Flexera Software LLC. All Rights Reserved.
+lmstat - Copyright (c) 1989-2023 Flexera Software LLC. All Rights Reserved.
+Flexible License Manager status on Thu 1/30/2025 10:00
+
+[Detecting lmgrd processes...]
+License server status: 27003@flex-1.example.de
+    License file(s) on flex-1.example.de: /opt/ansys/license/license.dat
+
+flex-1.example.de: license server UP (MASTER) v11.18.1
+
+Vendor daemon status (on flex-1.example.de):
+
+     ansyslmd: UP v11.18.1
+
+Feature usage info:
+
+Users of ans_act:  (Total of 25 licenses issued;  Total of 3 licenses in use)
+
+  "ans_act" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+    alice host1.example.de host1.example.de 1001 (v2025.0506) (flex-1/27003 100), start Thu 1/30 8:00
+    bob host2.example.de host2.example.de 2002 (v2024.0101) (flex-1/27003 101), start Thu 1/30 9:00
+    charlie host3.example.de host3.example.de 3003 (v2025.0506) (flex-1/27003 102), start Thu 1/30 10:00
+
+Users of cfd_solve:  (Total of 10 licenses issued;  Total of 2 licenses in use)
+
+  "cfd_solve" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+    dave host4.example.de host4.example.de 4004 (v2025.0506) (flex-1/27003 200), start Thu 1/30 7:30
+    eve host5.example.de host5.example.de 5005 (v2025.0506) (flex-1/27003 201), start Thu 1/30 8:30
+
+Users of mech_struct:  (Total of 15 licenses issued;  Total of 0 licenses in use)
+
+  "mech_struct" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+License files on flex-1.example.de (27003):
+ans_act 2026.0630 15 ansyslmd permanent
+ans_act 2026.0630 10 ansyslmd permanent
+cfd_solve 2026.0630 10 ansyslmd permanent
+mech_struct 2026.0630 15 ansyslmd permanent
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27003@flex-1.example.de",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Verify server status
+	if result.Status.Service != "up" {
+		t.Errorf("Expected service 'up', got '%s'", result.Status.Service)
+	}
+	if result.Status.Version != "11.18.1" {
+		t.Errorf("Expected version '11.18.1', got '%s'", result.Status.Version)
+	}
+
+	// Should have 3 features
+	if len(result.Features) != 3 {
+		t.Fatalf("Expected 3 features, got %d", len(result.Features))
+	}
+
+	featureMap := make(map[string]*models.Feature)
+	for i := range result.Features {
+		featureMap[result.Features[i].Name] = &result.Features[i]
+	}
+
+	// Test ans_act: 15 + 10 = 25 aggregated, 3 users
+	if f, ok := featureMap["ans_act"]; !ok {
+		t.Error("ans_act not found")
+	} else {
+		if f.TotalLicenses != 25 {
+			t.Errorf("ans_act: expected 25 total (15+10 aggregated), got %d", f.TotalLicenses)
+		}
+		if f.UsedLicenses != 3 {
+			t.Errorf("ans_act: expected 3 used, got %d", f.UsedLicenses)
+		}
+		if f.Version != "2026.0630" {
+			t.Errorf("ans_act: expected version '2026.0630', got '%s'", f.Version)
+		}
+	}
+
+	// Test cfd_solve: 10 licenses, 2 users
+	if f, ok := featureMap["cfd_solve"]; !ok {
+		t.Error("cfd_solve not found")
+	} else {
+		if f.TotalLicenses != 10 {
+			t.Errorf("cfd_solve: expected 10 total, got %d", f.TotalLicenses)
+		}
+		if f.UsedLicenses != 2 {
+			t.Errorf("cfd_solve: expected 2 used, got %d", f.UsedLicenses)
+		}
+	}
+
+	// Test mech_struct: 15 licenses, 0 users
+	if f, ok := featureMap["mech_struct"]; !ok {
+		t.Error("mech_struct not found")
+	} else {
+		if f.TotalLicenses != 15 {
+			t.Errorf("mech_struct: expected 15 total, got %d", f.TotalLicenses)
+		}
+		if f.UsedLicenses != 0 {
+			t.Errorf("mech_struct: expected 0 used, got %d", f.UsedLicenses)
+		}
+	}
+
+	// Verify all users parsed correctly with LICENSE version
+	if len(result.Users) != 5 {
+		t.Fatalf("Expected 5 users, got %d", len(result.Users))
+	}
+
+	for _, user := range result.Users {
+		// All users should have the license version 2026.0630, not their client versions
+		if user.Version != "2026.0630" {
+			t.Errorf("User %s: expected license version '2026.0630', got '%s'", user.Username, user.Version)
+		}
+	}
+
+	// Verify specific users
+	userFeatures := make(map[string]string)
+	for _, u := range result.Users {
+		userFeatures[u.Username] = u.FeatureName
+	}
+
+	expectedUserFeatures := map[string]string{
+		"alice":   "ans_act",
+		"bob":     "ans_act",
+		"charlie": "ans_act",
+		"dave":    "cfd_solve",
+		"eve":     "cfd_solve",
+	}
+
+	for user, expectedFeature := range expectedUserFeatures {
+		if userFeatures[user] != expectedFeature {
+			t.Errorf("User %s: expected feature '%s', got '%s'", user, expectedFeature, userFeatures[user])
+		}
+	}
+}
+
 func TestFlexLMParser_ErrorConditions(t *testing.T) {
 	testCases := []struct {
 		name           string
