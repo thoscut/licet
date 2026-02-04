@@ -70,7 +70,8 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 	// Inline feature version pattern - appears after "Users of" line
 	// Format: "feature_name" v2026.0630, vendor: ansyslmd, expiry: ...
-	featureVersionRe := regexp.MustCompile(`^\s+"([^"]+)"\s+v([0-9.]+)`)
+	// Note: "v" prefix is optional as some servers omit it
+	featureVersionRe := regexp.MustCompile(`^\s+"([^"]+)"\s+v?([0-9.]+)`)
 
 	currentFeature := ""
 	currentFeatureVersion := "" // Track version from inline feature info

@@ -987,6 +987,14 @@ ans_act 2026.0630 25 ansyslmd permanent
 			t.Errorf("Expected user %s to have client version '%s', got '%s'", user.Username, expected, user.Version)
 		}
 	}
+
+	// Verify users have correct LICENSE version (for matching to features)
+	// All users should have LicenseVersion = "2026.0630" from the inline feature info
+	for _, user := range result.Users {
+		if user.LicenseVersion != "2026.0630" {
+			t.Errorf("Expected user %s to have license version '2026.0630', got '%s'", user.Username, user.LicenseVersion)
+		}
+	}
 }
 
 func TestFlexLMParser_UsedLicensesProportionalFallback(t *testing.T) {
@@ -1265,6 +1273,21 @@ mech_struct 2026.0630 15 ansyslmd permanent
 		expected := expectedUserVersions[user.Username]
 		if user.Version != expected {
 			t.Errorf("User %s: expected client version '%s', got '%s'", user.Username, expected, user.Version)
+		}
+	}
+
+	// Users should have LICENSE version for matching to correct feature
+	expectedLicenseVersions := map[string]string{
+		"alice":   "2026.0630", // From "ans_act" v2026.0630 inline
+		"bob":     "2026.0630",
+		"charlie": "2026.0630",
+		"dave":    "2026.0630", // From "cfd_solve" v2026.0630 inline
+		"eve":     "2026.0630",
+	}
+	for _, user := range result.Users {
+		expected := expectedLicenseVersions[user.Username]
+		if user.LicenseVersion != expected {
+			t.Errorf("User %s: expected license version '%s', got '%s'", user.Username, expected, user.LicenseVersion)
 		}
 	}
 
