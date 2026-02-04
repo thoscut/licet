@@ -1375,3 +1375,53 @@ vendor daemon is down`,
 		})
 	}
 }
+
+// TestFlexLMParser_CaseSensitiveFeatureVersionMatching tests that the inline feature version
+// is correctly matched even when the "Users of" line has different case than the inline version line
+func TestFlexLMParser_CaseSensitiveFeatureVersionMatching(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Note: "Users of ANS_ACT" (uppercase) but inline version has "ans_act" (lowercase)
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of ANS_ACT:  (Total of 25 licenses issued;  Total of 3 licenses in use)
+
+  "ans_act" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+    user1 host1.example.de host1.example.de 1234 (v2025.0506) (server/27000 100), start Mon 1/15 9:00
+    user2 host2.example.de host2.example.de 2345 (v2024.0101) (server/27000 101), start Mon 1/15 10:00
+
+License files:
+ans_act 2026.0630 25 ansyslmd permanent
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Verify users were parsed
+	if len(result.Users) != 2 {
+		t.Fatalf("Expected 2 users, got %d", len(result.Users))
+	}
+
+	// The critical test: LicenseVersion should be set despite case mismatch between
+	// "Users of ANS_ACT" and "ans_act" in the inline version line
+	for _, user := range result.Users {
+		if user.LicenseVersion != "2026.0630" {
+			t.Errorf("User %s: expected LicenseVersion '2026.0630', got '%s' (case-insensitive match should work)", user.Username, user.LicenseVersion)
+		}
+	}
+}

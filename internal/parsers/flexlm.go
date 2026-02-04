@@ -150,8 +150,8 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 		// Parse inline feature version (appears after "Users of" line)
 		// Format: "feature_name" v2026.0630, vendor: ansyslmd, expiry: ...
 		if matches := featureVersionRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
-			// Verify the feature name matches (it should)
-			if matches[1] == currentFeature {
+			// Verify the feature name matches (case-insensitive since "Users of" regex is case-insensitive)
+			if strings.EqualFold(matches[1], currentFeature) {
 				currentFeatureVersion = matches[2]
 				featureVersionMap[currentFeature] = currentFeatureVersion
 			}
