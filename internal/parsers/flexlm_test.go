@@ -504,41 +504,47 @@ feature1 2024.0 5 myvendor 30-jun-2026
 
 	parser.parseOutput(strings.NewReader(output), &result)
 
-	// Verify users have correct version captured
-	// Note: Users get the LICENSE version (from inline feature info), not the client version
+	// Verify users have correct CLIENT version captured (for display purposes)
 	if len(result.Users) != 3 {
 		t.Fatalf("Expected 3 users, got %d", len(result.Users))
 	}
 
-	// All users should have the license version (2023.1) from the inline feature info
+	// Users should have their client software versions (not the license version)
+	expectedVersions := map[string]string{
+		"user1": "2023.1",
+		"user2": "2023.1",
+		"user3": "2024.0",
+	}
 	for _, user := range result.Users {
-		if user.Version != "2023.1" {
-			t.Errorf("Expected user %s version '2023.1' (license version), got '%s'", user.Username, user.Version)
+		expected := expectedVersions[user.Username]
+		if user.Version != expected {
+			t.Errorf("Expected user %s version '%s' (client version), got '%s'", user.Username, expected, user.Version)
 		}
 	}
 
-	// With inline version parsing, features from usageMap get the inline version
-	// The License files section creates additional features
-	if len(result.Features) < 1 {
-		t.Fatalf("Expected at least 1 feature, got %d", len(result.Features))
+	// License files section creates features for each version pool
+	if len(result.Features) != 2 {
+		t.Fatalf("Expected 2 features (2023.1 and 2024.0 pools), got %d", len(result.Features))
 	}
 
-	// Find the feature from usageMap (it should have the inline version 2023.1)
-	var usageFeature *models.Feature
+	// Verify UsedLicenses are correctly distributed by client version
+	featureMap := make(map[string]*models.Feature)
 	for i := range result.Features {
-		if result.Features[i].Name == "feature1" && result.Features[i].Version == "2023.1" {
-			usageFeature = &result.Features[i]
-			break
-		}
+		featureMap[result.Features[i].Version] = &result.Features[i]
 	}
 
-	if usageFeature == nil {
+	// feature1 v2023.1: 2 users (user1, user2 have client version 2023.1)
+	if f, ok := featureMap["2023.1"]; !ok {
 		t.Error("feature1 v2023.1 not found")
-	} else {
-		// All 3 users should be counted under this feature
-		if usageFeature.UsedLicenses != 3 {
-			t.Errorf("feature1 v2023.1: expected 3 used licenses, got %d", usageFeature.UsedLicenses)
-		}
+	} else if f.UsedLicenses != 2 {
+		t.Errorf("feature1 v2023.1: expected 2 used licenses, got %d", f.UsedLicenses)
+	}
+
+	// feature1 v2024.0: 1 user (user3 has client version 2024.0)
+	if f, ok := featureMap["2024.0"]; !ok {
+		t.Error("feature1 v2024.0 not found")
+	} else if f.UsedLicenses != 1 {
+		t.Errorf("feature1 v2024.0: expected 1 used license, got %d", f.UsedLicenses)
 	}
 }
 
@@ -581,11 +587,16 @@ feature1 2023.1 10 myvendor 31-dec-2025
 		t.Fatalf("Expected 3 users, got %d (checkout lines without 'v' prefix not parsed)", len(result.Users))
 	}
 
-	// All users should have the license version (2023.1) from the inline feature info
-	// not their client versions (which differ)
+	// Users should have their client software versions (for display)
+	expectedVersions := map[string]string{
+		"user1": "2023.1",
+		"user2": "2023.1",
+		"user3": "2024.0",
+	}
 	for _, user := range result.Users {
-		if user.Version != "2023.1" {
-			t.Errorf("Expected user %s version '2023.1' (license version), got '%s'", user.Username, user.Version)
+		expected := expectedVersions[user.Username]
+		if user.Version != expected {
+			t.Errorf("Expected user %s version '%s' (client version), got '%s'", user.Username, expected, user.Version)
 		}
 	}
 }
@@ -701,9 +712,9 @@ Users of cfd_preppost_pro:  (Total of 12 licenses issued;  Total of 1 license in
 	if result.Users[0].FeatureName != "cfd_preppost" {
 		t.Errorf("Expected first user feature 'cfd_preppost', got '%s'", result.Users[0].FeatureName)
 	}
-	// User gets the LICENSE version (from inline feature info), not the client version
-	if result.Users[0].Version != "2026.0630" {
-		t.Errorf("Expected first user version '2026.0630' (license version), got '%s'", result.Users[0].Version)
+	// User gets the CLIENT version (for display purposes)
+	if result.Users[0].Version != "2025.0506" {
+		t.Errorf("Expected first user version '2025.0506' (client version), got '%s'", result.Users[0].Version)
 	}
 
 	// Verify second user
@@ -713,9 +724,9 @@ Users of cfd_preppost_pro:  (Total of 12 licenses issued;  Total of 1 license in
 	if result.Users[1].FeatureName != "cfd_preppost_pro" {
 		t.Errorf("Expected second user feature 'cfd_preppost_pro', got '%s'", result.Users[1].FeatureName)
 	}
-	// Second user also gets the LICENSE version of their feature
-	if result.Users[1].Version != "2026.0630" {
-		t.Errorf("Expected second user version '2026.0630' (license version), got '%s'", result.Users[1].Version)
+	// Second user also gets the CLIENT version
+	if result.Users[1].Version != "2025.0506" {
+		t.Errorf("Expected second user version '2025.0506' (client version), got '%s'", result.Users[1].Version)
 	}
 
 	// Verify features have correct UsedLicenses
@@ -956,18 +967,24 @@ ans_act 2026.0630 25 ansyslmd permanent
 	feature := result.Features[0]
 
 	// All 3 users should be counted even though their client versions (2025.0506, 2024.0101)
-	// differ from the license version (2026.0630)
+	// differ from the license version (2026.0630) - counting falls back to feature name
 	if feature.UsedLicenses != 3 {
 		t.Errorf("Expected 3 used licenses (all users matched by feature name), got %d", feature.UsedLicenses)
 	}
 
-	// Verify all users have the license version (not client version)
+	// Verify users have their CLIENT versions (for display)
 	if len(result.Users) != 3 {
 		t.Fatalf("Expected 3 users, got %d", len(result.Users))
 	}
+	expectedVersions := map[string]string{
+		"user1": "2025.0506",
+		"user2": "2024.0101",
+		"user3": "2025.0506",
+	}
 	for _, user := range result.Users {
-		if user.Version != "2026.0630" {
-			t.Errorf("Expected user %s to have license version '2026.0630', got '%s'", user.Username, user.Version)
+		expected := expectedVersions[user.Username]
+		if user.Version != expected {
+			t.Errorf("Expected user %s to have client version '%s', got '%s'", user.Username, expected, user.Version)
 		}
 	}
 }
@@ -1074,11 +1091,11 @@ Users of feature_c:  (Total of 10 licenses issued;  Total of 1 license in use)
 		t.Fatalf("Expected 3 features, got %d", len(result.Features))
 	}
 
-	// All users should have their respective LICENSE versions, not client versions
+	// All users should have their respective CLIENT versions (for display)
 	expectedVersions := map[string]string{
-		"user1": "2023.1",
-		"user2": "2024.0506",
-		"user3": "1.0",
+		"user1": "2022.0",
+		"user2": "2023.0101",
+		"user3": "0.9",
 	}
 
 	if len(result.Users) != 3 {
@@ -1088,7 +1105,7 @@ Users of feature_c:  (Total of 10 licenses issued;  Total of 1 license in use)
 	for _, user := range result.Users {
 		expected := expectedVersions[user.Username]
 		if user.Version != expected {
-			t.Errorf("User %s: expected license version '%s', got '%s'", user.Username, expected, user.Version)
+			t.Errorf("User %s: expected client version '%s', got '%s'", user.Username, expected, user.Version)
 		}
 	}
 
@@ -1231,15 +1248,23 @@ mech_struct 2026.0630 15 ansyslmd permanent
 		}
 	}
 
-	// Verify all users parsed correctly with LICENSE version
+	// Verify all users parsed correctly with their CLIENT versions (for display)
 	if len(result.Users) != 5 {
 		t.Fatalf("Expected 5 users, got %d", len(result.Users))
 	}
 
+	// Users should have their client software versions
+	expectedUserVersions := map[string]string{
+		"alice":   "2025.0506",
+		"bob":     "2024.0101",
+		"charlie": "2025.0506",
+		"dave":    "2025.0506",
+		"eve":     "2025.0506",
+	}
 	for _, user := range result.Users {
-		// All users should have the license version 2026.0630, not their client versions
-		if user.Version != "2026.0630" {
-			t.Errorf("User %s: expected license version '2026.0630', got '%s'", user.Username, user.Version)
+		expected := expectedUserVersions[user.Username]
+		if user.Version != expected {
+			t.Errorf("User %s: expected client version '%s', got '%s'", user.Username, expected, user.Version)
 		}
 	}
 

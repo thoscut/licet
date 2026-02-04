@@ -269,21 +269,15 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 				checkedOut = AdjustCheckoutTimeToCurrentYear(checkedOut)
 			}
 
-			// Use the license/feature version for matching, not the client version
-			// The client version (from checkout line) may differ from license version
-			featureVersion := currentFeatureVersion
-			if featureVersion == "" {
-				// Fall back to client version if no license version available
-				featureVersion = version
-			}
-
+			// Store the client version for display purposes
+			// UsedLicenses calculation falls back to feature name matching when versions differ
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,
 				FeatureName:    currentFeature,
 				Username:       username,
 				Host:           host,
 				CheckedOutAt:   checkedOut,
-				Version:        featureVersion,
+				Version:        version, // Client software version for display
 			})
 		}
 	}
