@@ -129,7 +129,7 @@
                 {{$featureVersion := $feature.Version}}
                 {{$checkoutCount := 0}}
                 {{range $.Users}}
-                    {{if and (eq .FeatureName $featureName) (or (eq $featureVersion "") (eq .Version $featureVersion) (eq .Version ""))}}
+                    {{if and (eq .FeatureName $featureName) (or (eq $featureVersion "") (eq .LicenseVersion $featureVersion) (eq .LicenseVersion ""))}}
                         {{$checkoutCount = add $checkoutCount 1}}
                     {{end}}
                 {{end}}
@@ -156,16 +156,18 @@
                                     <tr>
                                         <th>User</th>
                                         <th>Host</th>
+                                        <th>Version</th>
                                         <th>Checked Out At</th>
                                         <th>Duration</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {{range $.Users}}
-                                        {{if and (eq .FeatureName $featureName) (or (eq $featureVersion "") (eq .Version $featureVersion) (eq .Version ""))}}
+                                        {{if and (eq .FeatureName $featureName) (or (eq $featureVersion "") (eq .LicenseVersion $featureVersion) (eq .LicenseVersion ""))}}
                                         <tr>
                                             <td>{{.Username}}</td>
                                             <td>{{.Host}}</td>
+                                            <td>{{.Version}}</td>
                                             <td>{{.CheckedOutAt.Format "2006-01-02 15:04:05"}}</td>
                                             <td>{{timeSince .CheckedOutAt}}</td>
                                         </tr>
