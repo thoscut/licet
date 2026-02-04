@@ -68,10 +68,17 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 	// Date format can be "Mon 1/2 9:00" or "Mon 1/2/24 9:00" or "Mon 1/2/2024 9:00"
 	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v?([^\)]+)\).*start\s+(\w+\s+\d+/\d+(?:/\d+)?\s+\d+:\d+)`)
 
+	// Inline feature version pattern - appears after "Users of" line
+	// Format: "feature_name" v2026.0630, vendor: ansyslmd, expiry: ...
+	featureVersionRe := regexp.MustCompile(`^\s+"([^"]+)"\s+v([0-9.]+)`)
+
 	currentFeature := ""
+	currentFeatureVersion := "" // Track version from inline feature info
 	featureMap := make(map[string]*models.Feature)
 	// Track usage counts by feature name for aggregation
 	usageMap := make(map[string]struct{ total, used int })
+	// Track inline feature versions (the license version, not client version)
+	featureVersionMap := make(map[string]string)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -134,7 +141,19 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			// Store usage counts for later distribution to license pools
 			usageMap[featureName] = struct{ total, used int }{total, used}
 			currentFeature = featureName
+			currentFeatureVersion = ""    // Reset version for new feature
 			lastFeatureName = featureName // Track for "no such feature exists" check
+			continue
+		}
+
+		// Parse inline feature version (appears after "Users of" line)
+		// Format: "feature_name" v2026.0630, vendor: ansyslmd, expiry: ...
+		if matches := featureVersionRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
+			// Verify the feature name matches (it should)
+			if matches[1] == currentFeature {
+				currentFeatureVersion = matches[2]
+				featureVersionMap[currentFeature] = currentFeatureVersion
+			}
 			continue
 		}
 
@@ -198,16 +217,22 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			// Create a unique key for each license pool: name + version + expiration
 			key := fmt.Sprintf("%s|%s|%s", featureName, version, expDate.Format("2006-01-02"))
 
-			// Create feature with UsedLicenses = 0; will be updated after user parsing
-			featureMap[key] = &models.Feature{
-				ServerHostname: result.Status.Hostname,
-				Name:           featureName,
-				Version:        version,
-				VendorDaemon:   vendorDaemon,
-				TotalLicenses:  numLicenses,
-				UsedLicenses:   0,
-				ExpirationDate: expDate,
-				LastUpdated:    time.Now(),
+			// Check if this key already exists - if so, add to the license count
+			// (multiple license file entries can have the same feature/version/expiration)
+			if existing, ok := featureMap[key]; ok {
+				existing.TotalLicenses += numLicenses
+			} else {
+				// Create feature with UsedLicenses = 0; will be updated after user parsing
+				featureMap[key] = &models.Feature{
+					ServerHostname: result.Status.Hostname,
+					Name:           featureName,
+					Version:        version,
+					VendorDaemon:   vendorDaemon,
+					TotalLicenses:  numLicenses,
+					UsedLicenses:   0,
+					ExpirationDate: expDate,
+					LastUpdated:    time.Now(),
+				}
 			}
 			continue
 		}
@@ -244,13 +269,15 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 				checkedOut = AdjustCheckoutTimeToCurrentYear(checkedOut)
 			}
 
+			// Store the client version for display purposes
+			// UsedLicenses calculation falls back to feature name matching when versions differ
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,
 				FeatureName:    currentFeature,
 				Username:       username,
 				Host:           host,
 				CheckedOutAt:   checkedOut,
-				Version:        version,
+				Version:        version, // Client software version for display
 			})
 		}
 	}
@@ -268,9 +295,12 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 		// If not, create a feature from usage data
 		if !hasFeature {
+			// Use inline version if available (the license version from the feature info line)
+			version := featureVersionMap[featureName]
 			featureMap[featureName] = &models.Feature{
 				ServerHostname: result.Status.Hostname,
 				Name:           featureName,
+				Version:        version,
 				TotalLicenses:  usage.total,
 				UsedLicenses:   usage.used,
 				LastUpdated:    time.Now(),
@@ -282,26 +312,28 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 	// Count users per feature name + version
 	userCountByFeatureVersion := make(map[string]int)
 	userCountByFeatureName := make(map[string]int)
-	hasUsersForFeature := make(map[string]bool)
 	for _, user := range result.Users {
 		key := fmt.Sprintf("%s|%s", user.FeatureName, user.Version)
 		userCountByFeatureVersion[key]++
 		userCountByFeatureName[user.FeatureName]++
-		hasUsersForFeature[user.FeatureName] = true
 	}
 
 	// Update UsedLicenses for each feature based on actual user counts
 	for key, feature := range featureMap {
-		// Try to match by feature name + version first
+		// Try to match by feature name + version first (exact match)
 		userKey := fmt.Sprintf("%s|%s", feature.Name, feature.Version)
 		if count, ok := userCountByFeatureVersion[userKey]; ok {
 			feature.UsedLicenses = count
 		} else if feature.Version == "" {
-			// For features without version (from usageMap only), use total count by feature name
+			// For features without version, use total count by feature name
 			if count, ok := userCountByFeatureName[feature.Name]; ok {
 				feature.UsedLicenses = count
 			}
-		} else if !hasUsersForFeature[feature.Name] {
+		} else if count, ok := userCountByFeatureName[feature.Name]; ok {
+			// Feature has version but no exact match - client version often differs from license version
+			// Fall back to counting all users for this feature name
+			feature.UsedLicenses = count
+		} else {
 			// No user checkout lines for this feature - fall back to usageMap proportional distribution
 			if usage, hasUsage := usageMap[feature.Name]; hasUsage && usage.total > 0 {
 				usedLicenses := (usage.used * feature.TotalLicenses) / usage.total
