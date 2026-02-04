@@ -748,6 +748,68 @@ Users of cfd_preppost_pro:  (Total of 12 licenses issued;  Total of 1 license in
 	}
 }
 
+func TestFlexLMParser_MultipleLicenseFilesAggregation(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Test case where multiple license file entries exist for the same feature/version/expiration
+	// These should be aggregated (summed) rather than overwriting each other
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27003@flex-1.example.de
+    flex-1.example.de: license server UP v11.18.1
+
+Feature usage info:
+
+Users of ans_act:  (Total of 25 licenses issued;  Total of 2 licenses in use)
+
+  "ans_act" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+    user1 machine1.example.de machine1.example.de 1234 (v2025.0506) (flex-1/27003 100), start Thu 1/29 11:39
+    user2 machine2.example.de machine2.example.de 5678 (v2025.0506) (flex-1/27003 101), start Thu 1/29 12:00
+
+License files:
+ans_act 2026.0630 10 ansyslmd permanent
+ans_act 2026.0630 15 ansyslmd permanent
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27003@flex-1.example.de",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should have 1 feature (aggregated from two license file entries)
+	if len(result.Features) != 1 {
+		t.Fatalf("Expected 1 feature (aggregated), got %d", len(result.Features))
+	}
+
+	feature := result.Features[0]
+	if feature.Name != "ans_act" {
+		t.Errorf("Expected feature name 'ans_act', got '%s'", feature.Name)
+	}
+
+	// Total licenses should be 10 + 15 = 25 (aggregated from both license file entries)
+	if feature.TotalLicenses != 25 {
+		t.Errorf("Expected 25 total licenses (10 + 15 aggregated), got %d", feature.TotalLicenses)
+	}
+
+	// Used licenses should be 2 (from the two users)
+	if feature.UsedLicenses != 2 {
+		t.Errorf("Expected 2 used licenses, got %d", feature.UsedLicenses)
+	}
+
+	// Verify users were parsed correctly
+	if len(result.Users) != 2 {
+		t.Fatalf("Expected 2 users, got %d", len(result.Users))
+	}
+}
+
 func TestFlexLMParser_ErrorConditions(t *testing.T) {
 	testCases := []struct {
 		name           string

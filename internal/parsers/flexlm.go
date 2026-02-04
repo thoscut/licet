@@ -217,16 +217,22 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			// Create a unique key for each license pool: name + version + expiration
 			key := fmt.Sprintf("%s|%s|%s", featureName, version, expDate.Format("2006-01-02"))
 
-			// Create feature with UsedLicenses = 0; will be updated after user parsing
-			featureMap[key] = &models.Feature{
-				ServerHostname: result.Status.Hostname,
-				Name:           featureName,
-				Version:        version,
-				VendorDaemon:   vendorDaemon,
-				TotalLicenses:  numLicenses,
-				UsedLicenses:   0,
-				ExpirationDate: expDate,
-				LastUpdated:    time.Now(),
+			// Check if this key already exists - if so, add to the license count
+			// (multiple license file entries can have the same feature/version/expiration)
+			if existing, ok := featureMap[key]; ok {
+				existing.TotalLicenses += numLicenses
+			} else {
+				// Create feature with UsedLicenses = 0; will be updated after user parsing
+				featureMap[key] = &models.Feature{
+					ServerHostname: result.Status.Hostname,
+					Name:           featureName,
+					Version:        version,
+					VendorDaemon:   vendorDaemon,
+					TotalLicenses:  numLicenses,
+					UsedLicenses:   0,
+					ExpirationDate: expDate,
+					LastUpdated:    time.Now(),
+				}
 			}
 			continue
 		}
