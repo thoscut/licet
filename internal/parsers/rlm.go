@@ -161,7 +161,8 @@ func (p *RLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResu
 				Username:       username,
 				Host:           host,
 				CheckedOutAt:   checkedOut,
-				Version:        version,
+				Version:        version, // For RLM, client version is the license version
+				LicenseVersion: version, // Same as Version for RLM
 			})
 		}
 	}

@@ -75,7 +75,8 @@ type LicenseUser struct {
 	Username       string    `json:"username"`
 	Host           string    `json:"host"`
 	CheckedOutAt   time.Time `json:"checked_out_at"`
-	Version        string    `json:"version,omitempty"`
+	Version        string    `json:"version,omitempty"`         // Client software version (for display)
+	LicenseVersion string    `json:"license_version,omitempty"` // License pool version (for matching to features)
 	Display        string    `json:"display,omitempty"`
 }
 
