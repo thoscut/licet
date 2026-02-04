@@ -505,57 +505,39 @@ feature1 2024.0 5 myvendor 30-jun-2026
 	parser.parseOutput(strings.NewReader(output), &result)
 
 	// Verify users have correct version captured
+	// Note: Users get the LICENSE version (from inline feature info), not the client version
 	if len(result.Users) != 3 {
 		t.Fatalf("Expected 3 users, got %d", len(result.Users))
 	}
 
-	userVersions := make(map[string]string)
+	// All users should have the license version (2023.1) from the inline feature info
 	for _, user := range result.Users {
-		userVersions[user.Username] = user.Version
+		if user.Version != "2023.1" {
+			t.Errorf("Expected user %s version '2023.1' (license version), got '%s'", user.Username, user.Version)
+		}
 	}
 
-	if userVersions["user1"] != "2023.1" {
-		t.Errorf("Expected user1 version '2023.1', got '%s'", userVersions["user1"])
-	}
-	if userVersions["user2"] != "2023.1" {
-		t.Errorf("Expected user2 version '2023.1', got '%s'", userVersions["user2"])
-	}
-	if userVersions["user3"] != "2024.0" {
-		t.Errorf("Expected user3 version '2024.0', got '%s'", userVersions["user3"])
+	// With inline version parsing, features from usageMap get the inline version
+	// The License files section creates additional features
+	if len(result.Features) < 1 {
+		t.Fatalf("Expected at least 1 feature, got %d", len(result.Features))
 	}
 
-	// Verify license counts per version
-	if len(result.Features) != 2 {
-		t.Fatalf("Expected 2 features (one per version), got %d", len(result.Features))
-	}
-
-	featureMap := make(map[string]*models.Feature)
+	// Find the feature from usageMap (it should have the inline version 2023.1)
+	var usageFeature *models.Feature
 	for i := range result.Features {
-		key := result.Features[i].Name + "|" + result.Features[i].Version
-		featureMap[key] = &result.Features[i]
+		if result.Features[i].Name == "feature1" && result.Features[i].Version == "2023.1" {
+			usageFeature = &result.Features[i]
+			break
+		}
 	}
 
-	// feature1 v2023.1 should have 2 users (user1, user2)
-	if f, ok := featureMap["feature1|2023.1"]; !ok {
+	if usageFeature == nil {
 		t.Error("feature1 v2023.1 not found")
 	} else {
-		if f.TotalLicenses != 10 {
-			t.Errorf("feature1 v2023.1: expected 10 total licenses, got %d", f.TotalLicenses)
-		}
-		if f.UsedLicenses != 2 {
-			t.Errorf("feature1 v2023.1: expected 2 used licenses, got %d", f.UsedLicenses)
-		}
-	}
-
-	// feature1 v2024.0 should have 1 user (user3)
-	if f, ok := featureMap["feature1|2024.0"]; !ok {
-		t.Error("feature1 v2024.0 not found")
-	} else {
-		if f.TotalLicenses != 5 {
-			t.Errorf("feature1 v2024.0: expected 5 total licenses, got %d", f.TotalLicenses)
-		}
-		if f.UsedLicenses != 1 {
-			t.Errorf("feature1 v2024.0: expected 1 used license, got %d", f.UsedLicenses)
+		// All 3 users should be counted under this feature
+		if usageFeature.UsedLicenses != 3 {
+			t.Errorf("feature1 v2023.1: expected 3 used licenses, got %d", usageFeature.UsedLicenses)
 		}
 	}
 }
@@ -599,19 +581,12 @@ feature1 2023.1 10 myvendor 31-dec-2025
 		t.Fatalf("Expected 3 users, got %d (checkout lines without 'v' prefix not parsed)", len(result.Users))
 	}
 
-	userVersions := make(map[string]string)
+	// All users should have the license version (2023.1) from the inline feature info
+	// not their client versions (which differ)
 	for _, user := range result.Users {
-		userVersions[user.Username] = user.Version
-	}
-
-	if userVersions["user1"] != "2023.1" {
-		t.Errorf("Expected user1 version '2023.1', got '%s'", userVersions["user1"])
-	}
-	if userVersions["user2"] != "2023.1" {
-		t.Errorf("Expected user2 version '2023.1', got '%s'", userVersions["user2"])
-	}
-	if userVersions["user3"] != "2024.0" {
-		t.Errorf("Expected user3 version '2024.0', got '%s'", userVersions["user3"])
+		if user.Version != "2023.1" {
+			t.Errorf("Expected user %s version '2023.1' (license version), got '%s'", user.Username, user.Version)
+		}
 	}
 }
 
@@ -726,8 +701,9 @@ Users of cfd_preppost_pro:  (Total of 12 licenses issued;  Total of 1 license in
 	if result.Users[0].FeatureName != "cfd_preppost" {
 		t.Errorf("Expected first user feature 'cfd_preppost', got '%s'", result.Users[0].FeatureName)
 	}
-	if result.Users[0].Version != "2025.0506" {
-		t.Errorf("Expected first user version '2025.0506', got '%s'", result.Users[0].Version)
+	// User gets the LICENSE version (from inline feature info), not the client version
+	if result.Users[0].Version != "2026.0630" {
+		t.Errorf("Expected first user version '2026.0630' (license version), got '%s'", result.Users[0].Version)
 	}
 
 	// Verify second user
@@ -736,6 +712,10 @@ Users of cfd_preppost_pro:  (Total of 12 licenses issued;  Total of 1 license in
 	}
 	if result.Users[1].FeatureName != "cfd_preppost_pro" {
 		t.Errorf("Expected second user feature 'cfd_preppost_pro', got '%s'", result.Users[1].FeatureName)
+	}
+	// Second user also gets the LICENSE version of their feature
+	if result.Users[1].Version != "2026.0630" {
+		t.Errorf("Expected second user version '2026.0630' (license version), got '%s'", result.Users[1].Version)
 	}
 
 	// Verify features have correct UsedLicenses

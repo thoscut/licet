@@ -68,10 +68,17 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 	// Date format can be "Mon 1/2 9:00" or "Mon 1/2/24 9:00" or "Mon 1/2/2024 9:00"
 	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v?([^\)]+)\).*start\s+(\w+\s+\d+/\d+(?:/\d+)?\s+\d+:\d+)`)
 
+	// Inline feature version pattern - appears after "Users of" line
+	// Format: "feature_name" v2026.0630, vendor: ansyslmd, expiry: ...
+	featureVersionRe := regexp.MustCompile(`^\s+"([^"]+)"\s+v([0-9.]+)`)
+
 	currentFeature := ""
+	currentFeatureVersion := "" // Track version from inline feature info
 	featureMap := make(map[string]*models.Feature)
 	// Track usage counts by feature name for aggregation
 	usageMap := make(map[string]struct{ total, used int })
+	// Track inline feature versions (the license version, not client version)
+	featureVersionMap := make(map[string]string)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -134,7 +141,19 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			// Store usage counts for later distribution to license pools
 			usageMap[featureName] = struct{ total, used int }{total, used}
 			currentFeature = featureName
+			currentFeatureVersion = ""    // Reset version for new feature
 			lastFeatureName = featureName // Track for "no such feature exists" check
+			continue
+		}
+
+		// Parse inline feature version (appears after "Users of" line)
+		// Format: "feature_name" v2026.0630, vendor: ansyslmd, expiry: ...
+		if matches := featureVersionRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
+			// Verify the feature name matches (it should)
+			if matches[1] == currentFeature {
+				currentFeatureVersion = matches[2]
+				featureVersionMap[currentFeature] = currentFeatureVersion
+			}
 			continue
 		}
 
@@ -244,13 +263,21 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 				checkedOut = AdjustCheckoutTimeToCurrentYear(checkedOut)
 			}
 
+			// Use the license/feature version for matching, not the client version
+			// The client version (from checkout line) may differ from license version
+			featureVersion := currentFeatureVersion
+			if featureVersion == "" {
+				// Fall back to client version if no license version available
+				featureVersion = version
+			}
+
 			result.Users = append(result.Users, models.LicenseUser{
 				ServerHostname: result.Status.Hostname,
 				FeatureName:    currentFeature,
 				Username:       username,
 				Host:           host,
 				CheckedOutAt:   checkedOut,
-				Version:        version,
+				Version:        featureVersion,
 			})
 		}
 	}
@@ -268,9 +295,12 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 		// If not, create a feature from usage data
 		if !hasFeature {
+			// Use inline version if available (the license version from the feature info line)
+			version := featureVersionMap[featureName]
 			featureMap[featureName] = &models.Feature{
 				ServerHostname: result.Status.Hostname,
 				Name:           featureName,
+				Version:        version,
 				TotalLicenses:  usage.total,
 				UsedLicenses:   usage.used,
 				LastUpdated:    time.Now(),
