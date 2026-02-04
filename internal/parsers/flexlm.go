@@ -282,26 +282,28 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 	// Count users per feature name + version
 	userCountByFeatureVersion := make(map[string]int)
 	userCountByFeatureName := make(map[string]int)
-	hasUsersForFeature := make(map[string]bool)
 	for _, user := range result.Users {
 		key := fmt.Sprintf("%s|%s", user.FeatureName, user.Version)
 		userCountByFeatureVersion[key]++
 		userCountByFeatureName[user.FeatureName]++
-		hasUsersForFeature[user.FeatureName] = true
 	}
 
 	// Update UsedLicenses for each feature based on actual user counts
 	for key, feature := range featureMap {
-		// Try to match by feature name + version first
+		// Try to match by feature name + version first (exact match)
 		userKey := fmt.Sprintf("%s|%s", feature.Name, feature.Version)
 		if count, ok := userCountByFeatureVersion[userKey]; ok {
 			feature.UsedLicenses = count
 		} else if feature.Version == "" {
-			// For features without version (from usageMap only), use total count by feature name
+			// For features without version, use total count by feature name
 			if count, ok := userCountByFeatureName[feature.Name]; ok {
 				feature.UsedLicenses = count
 			}
-		} else if !hasUsersForFeature[feature.Name] {
+		} else if count, ok := userCountByFeatureName[feature.Name]; ok {
+			// Feature has version but no exact match - client version often differs from license version
+			// Fall back to counting all users for this feature name
+			feature.UsedLicenses = count
+		} else {
 			// No user checkout lines for this feature - fall back to usageMap proportional distribution
 			if usage, hasUsage := usageMap[feature.Name]; hasUsage && usage.total > 0 {
 				usedLicenses := (usage.used * feature.TotalLicenses) / usage.total
