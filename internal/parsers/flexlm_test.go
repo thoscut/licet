@@ -527,24 +527,34 @@ feature1 2024.0 5 myvendor 30-jun-2026
 		t.Fatalf("Expected 2 features (2023.1 and 2024.0 pools), got %d", len(result.Features))
 	}
 
-	// Verify UsedLicenses are correctly distributed by client version
+	// Verify UsedLicenses are correctly distributed by license version
+	// The inline version line says "feature1" v2023.1, so ALL users in this "Users of"
+	// block are attributed to the v2023.1 license pool (regardless of client version)
 	featureMap := make(map[string]*models.Feature)
 	for i := range result.Features {
 		featureMap[result.Features[i].Version] = &result.Features[i]
 	}
 
-	// feature1 v2023.1: 2 users (user1, user2 have client version 2023.1)
+	// feature1 v2023.1: 3 users (all have LicenseVersion 2023.1 from inline version line)
 	if f, ok := featureMap["2023.1"]; !ok {
 		t.Error("feature1 v2023.1 not found")
-	} else if f.UsedLicenses != 2 {
-		t.Errorf("feature1 v2023.1: expected 2 used licenses, got %d", f.UsedLicenses)
+	} else if f.UsedLicenses != 3 {
+		t.Errorf("feature1 v2023.1: expected 3 used licenses, got %d", f.UsedLicenses)
 	}
 
-	// feature1 v2024.0: 1 user (user3 has client version 2024.0)
+	// feature1 v2024.0: no matching LicenseVersion users, falls back to proportional
+	// usageMap has 5 used out of 15 total, this pool has 5 licenses: (5*5)/15 = 1
 	if f, ok := featureMap["2024.0"]; !ok {
 		t.Error("feature1 v2024.0 not found")
 	} else if f.UsedLicenses != 1 {
-		t.Errorf("feature1 v2024.0: expected 1 used license, got %d", f.UsedLicenses)
+		t.Errorf("feature1 v2024.0: expected 1 used license (proportional), got %d", f.UsedLicenses)
+	}
+
+	// Verify all users have LicenseVersion set from inline version line
+	for _, user := range result.Users {
+		if user.LicenseVersion != "2023.1" {
+			t.Errorf("User %s: expected LicenseVersion '2023.1', got '%s'", user.Username, user.LicenseVersion)
+		}
 	}
 }
 
@@ -1373,5 +1383,55 @@ vendor daemon is down`,
 				t.Errorf("Expected message to contain '%s', got '%s'", tc.expectedMsg, result.Status.Message)
 			}
 		})
+	}
+}
+
+// TestFlexLMParser_CaseSensitiveFeatureVersionMatching tests that the inline feature version
+// is correctly matched even when the "Users of" line has different case than the inline version line
+func TestFlexLMParser_CaseSensitiveFeatureVersionMatching(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	// Note: "Users of ANS_ACT" (uppercase) but inline version has "ans_act" (lowercase)
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of ANS_ACT:  (Total of 25 licenses issued;  Total of 3 licenses in use)
+
+  "ans_act" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+    user1 host1.example.de host1.example.de 1234 (v2025.0506) (server/27000 100), start Mon 1/15 9:00
+    user2 host2.example.de host2.example.de 2345 (v2024.0101) (server/27000 101), start Mon 1/15 10:00
+
+License files:
+ans_act 2026.0630 25 ansyslmd permanent
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Verify users were parsed
+	if len(result.Users) != 2 {
+		t.Fatalf("Expected 2 users, got %d", len(result.Users))
+	}
+
+	// The critical test: LicenseVersion should be set despite case mismatch between
+	// "Users of ANS_ACT" and "ans_act" in the inline version line
+	for _, user := range result.Users {
+		if user.LicenseVersion != "2026.0630" {
+			t.Errorf("User %s: expected LicenseVersion '2026.0630', got '%s' (case-insensitive match should work)", user.Username, user.LicenseVersion)
+		}
 	}
 }
