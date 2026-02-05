@@ -527,24 +527,34 @@ feature1 2024.0 5 myvendor 30-jun-2026
 		t.Fatalf("Expected 2 features (2023.1 and 2024.0 pools), got %d", len(result.Features))
 	}
 
-	// Verify UsedLicenses are correctly distributed by client version
+	// Verify UsedLicenses are correctly distributed by license version
+	// The inline version line says "feature1" v2023.1, so ALL users in this "Users of"
+	// block are attributed to the v2023.1 license pool (regardless of client version)
 	featureMap := make(map[string]*models.Feature)
 	for i := range result.Features {
 		featureMap[result.Features[i].Version] = &result.Features[i]
 	}
 
-	// feature1 v2023.1: 2 users (user1, user2 have client version 2023.1)
+	// feature1 v2023.1: 3 users (all have LicenseVersion 2023.1 from inline version line)
 	if f, ok := featureMap["2023.1"]; !ok {
 		t.Error("feature1 v2023.1 not found")
-	} else if f.UsedLicenses != 2 {
-		t.Errorf("feature1 v2023.1: expected 2 used licenses, got %d", f.UsedLicenses)
+	} else if f.UsedLicenses != 3 {
+		t.Errorf("feature1 v2023.1: expected 3 used licenses, got %d", f.UsedLicenses)
 	}
 
-	// feature1 v2024.0: 1 user (user3 has client version 2024.0)
+	// feature1 v2024.0: no matching LicenseVersion users, falls back to proportional
+	// usageMap has 5 used out of 15 total, this pool has 5 licenses: (5*5)/15 = 1
 	if f, ok := featureMap["2024.0"]; !ok {
 		t.Error("feature1 v2024.0 not found")
 	} else if f.UsedLicenses != 1 {
-		t.Errorf("feature1 v2024.0: expected 1 used license, got %d", f.UsedLicenses)
+		t.Errorf("feature1 v2024.0: expected 1 used license (proportional), got %d", f.UsedLicenses)
+	}
+
+	// Verify all users have LicenseVersion set from inline version line
+	for _, user := range result.Users {
+		if user.LicenseVersion != "2023.1" {
+			t.Errorf("User %s: expected LicenseVersion '2023.1', got '%s'", user.Username, user.LicenseVersion)
+		}
 	}
 }
 
