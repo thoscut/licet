@@ -41,6 +41,7 @@ type Cache struct {
 	entries map[string]*cacheEntry
 	mu      sync.RWMutex
 	config  CacheConfig
+	stopCh  chan struct{}
 }
 
 // NewCache creates a new cache instance
@@ -48,6 +49,7 @@ func NewCache(config CacheConfig) *Cache {
 	c := &Cache{
 		entries: make(map[string]*cacheEntry),
 		config:  config,
+		stopCh:  make(chan struct{}),
 	}
 
 	// Start cleanup goroutine
@@ -56,13 +58,23 @@ func NewCache(config CacheConfig) *Cache {
 	return c
 }
 
+// Stop shuts down the cache cleanup goroutine
+func (c *Cache) Stop() {
+	close(c.stopCh)
+}
+
 // cleanupLoop periodically removes expired entries
 func (c *Cache) cleanupLoop() {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		c.cleanup()
+	for {
+		select {
+		case <-ticker.C:
+			c.cleanup()
+		case <-c.stopCh:
+			return
+		}
 	}
 }
 

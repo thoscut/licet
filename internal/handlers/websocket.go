@@ -84,13 +84,16 @@ type WebSocketHub struct {
 	cancel       context.CancelFunc
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		// In production, you should validate the origin
-		return true
-	},
+// newUpgrader creates a per-call upgrader to avoid data races on global state
+func newUpgrader(config WebSocketConfig) websocket.Upgrader {
+	return websocket.Upgrader{
+		ReadBufferSize:  config.ReadBufferSize,
+		WriteBufferSize: config.WriteBufferSize,
+		CheckOrigin: func(r *http.Request) bool {
+			// In production, you should validate the origin
+			return true
+		},
+	}
 }
 
 // NewWebSocketHub creates a new WebSocket hub
@@ -269,9 +272,7 @@ func (h *WebSocketHub) GetClientCount() int {
 // HandleWebSocket handles WebSocket connections
 func (h *WebSocketHub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Upgrade HTTP connection to WebSocket
-	upgrader.ReadBufferSize = h.config.ReadBufferSize
-	upgrader.WriteBufferSize = h.config.WriteBufferSize
-
+	upgrader := newUpgrader(h.config)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.WithError(err).Error("Failed to upgrade WebSocket connection")

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -172,42 +173,11 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 	// Authentication middleware
 	var authenticator *appmiddleware.Authenticator
 	if cfg.Auth.Enabled {
-		authConfig := appmiddleware.AuthConfig{
-			Enabled:            cfg.Auth.Enabled,
-			AllowAnonymousRead: cfg.Auth.AllowAnonymousRead,
-			SessionTimeout:     cfg.Auth.SessionTimeout,
-			ExemptPaths:        cfg.Auth.ExemptPaths,
-			BasicAuth: appmiddleware.BasicAuth{
-				Enabled: cfg.Auth.BasicAuth.Enabled,
-			},
-		}
-
-		// Convert API keys
-		for _, k := range cfg.Auth.APIKeys {
-			authConfig.APIKeys = append(authConfig.APIKeys, appmiddleware.APIKey{
-				Name:        k.Name,
-				Key:         k.Key,
-				Role:        k.Role,
-				Description: k.Description,
-				Enabled:     k.Enabled,
-			})
-		}
-
-		// Convert Basic Auth users
-		for _, u := range cfg.Auth.BasicAuth.Users {
-			authConfig.BasicAuth.Users = append(authConfig.BasicAuth.Users, appmiddleware.BasicUser{
-				Username: u.Username,
-				Password: u.Password,
-				Role:     u.Role,
-				Enabled:  u.Enabled,
-			})
-		}
-
-		authenticator = appmiddleware.NewAuthenticator(authConfig)
+		authenticator = appmiddleware.NewAuthenticator(cfg.Auth)
 		r.Use(appmiddleware.AuthMiddleware(authenticator))
 		log.WithFields(log.Fields{
-			"api_keys_count": len(authConfig.APIKeys),
-			"basic_auth":     authConfig.BasicAuth.Enabled,
+			"api_keys_count": len(cfg.Auth.APIKeys),
+			"basic_auth":     cfg.Auth.BasicAuth.Enabled,
 		}).Info("Authentication enabled")
 	}
 
@@ -285,35 +255,12 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 
 	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
-		// Apply caching middleware to read-only API endpoints
-		if cache != nil {
-			r.Group(func(r chi.Router) {
+		// Read-only API endpoints -- optionally cached
+		r.Group(func(r chi.Router) {
+			if cache != nil {
 				r.Use(appmiddleware.CacheMiddleware(cache, time.Duration(cfg.Cache.TTLSeconds)*time.Second))
+			}
 
-				r.Get("/servers", handlers.ListServers(query))
-				r.Get("/servers/{server}/status", handlers.GetServerStatus(query))
-				r.Get("/servers/{server}/features", handlers.GetServerFeatures(storage))
-				r.Get("/servers/{server}/users", handlers.GetServerUsers(query))
-				r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(storage))
-				r.Get("/alerts", handlers.GetAlerts(alertService))
-
-				// Utilization endpoints (cached)
-				r.Get("/utilization/current", handlers.GetCurrentUtilization(analytics))
-				r.Get("/utilization/history", handlers.GetUtilizationHistory(analytics))
-				r.Get("/utilization/stats", handlers.GetUtilizationStats(analytics))
-				r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(analytics))
-				r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(analytics))
-
-				// Enhanced statistics endpoints (cached)
-				r.Get("/statistics/enhanced", handlers.GetEnhancedStatistics(enhancedAnalytics))
-				r.Get("/statistics/trends", handlers.GetTrendAnalysis(enhancedAnalytics))
-				r.Get("/statistics/capacity", handlers.GetCapacityPlanningReport(enhancedAnalytics))
-
-				// Database statistics endpoints (cached - read-only)
-				r.Get("/database/stats", handlers.GetDatabaseStats(dbStats))
-				r.Get("/database/retention", handlers.GetRetentionStats(dbStats))
-			})
-		} else {
 			r.Get("/servers", handlers.ListServers(query))
 			r.Get("/servers/{server}/status", handlers.GetServerStatus(query))
 			r.Get("/servers/{server}/features", handlers.GetServerFeatures(storage))
@@ -321,22 +268,22 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 			r.Get("/features/{feature}/usage", handlers.GetFeatureUsage(storage))
 			r.Get("/alerts", handlers.GetAlerts(alertService))
 
-			// Utilization endpoints (not cached)
+			// Utilization endpoints
 			r.Get("/utilization/current", handlers.GetCurrentUtilization(analytics))
 			r.Get("/utilization/history", handlers.GetUtilizationHistory(analytics))
 			r.Get("/utilization/stats", handlers.GetUtilizationStats(analytics))
 			r.Get("/utilization/heatmap", handlers.GetUtilizationHeatmap(analytics))
 			r.Get("/utilization/predictions", handlers.GetPredictiveAnalytics(analytics))
 
-			// Enhanced statistics endpoints (not cached)
+			// Enhanced statistics endpoints
 			r.Get("/statistics/enhanced", handlers.GetEnhancedStatistics(enhancedAnalytics))
 			r.Get("/statistics/trends", handlers.GetTrendAnalysis(enhancedAnalytics))
 			r.Get("/statistics/capacity", handlers.GetCapacityPlanningReport(enhancedAnalytics))
 
-			// Database statistics endpoints (not cached)
+			// Database statistics endpoints (read-only)
 			r.Get("/database/stats", handlers.GetDatabaseStats(dbStats))
 			r.Get("/database/retention", handlers.GetRetentionStats(dbStats))
-		}
+		})
 
 		// Non-cached endpoints (mutations and health check)
 		r.Post("/servers", handlers.AddServer(cfg))
@@ -371,8 +318,7 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 		if cache != nil {
 			r.Get("/cache/stats", func(w http.ResponseWriter, req *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				stats := cache.Stats()
-				w.Write([]byte(fmt.Sprintf(`{"cache": %v}`, stats)))
+				json.NewEncoder(w).Encode(map[string]interface{}{"cache": cache.Stats()})
 			})
 		}
 
@@ -380,8 +326,7 @@ func setupRouter(cfg *config.Config, query *services.QueryService, storage *serv
 		r.Get("/auth/info", func(w http.ResponseWriter, req *http.Request) {
 			authInfo := appmiddleware.GetAuthInfo(req)
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(fmt.Sprintf(`{"authenticated":%t,"username":"%s","role":"%s","method":"%s"}`,
-				authInfo.Authenticated, authInfo.Username, authInfo.Role, authInfo.Method)))
+			json.NewEncoder(w).Encode(authInfo)
 		})
 	})
 

@@ -32,6 +32,10 @@ func New(cfg config.DatabaseConfig) (*sqlx.DB, error) {
 	case "sqlite":
 		driverName = "sqlite3"
 		dsn = cfg.Database
+	case "mysql":
+		driverName = "mysql"
+		dsn = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+			cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
 	}

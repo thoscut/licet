@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"context"
 	"fmt"
 
 	"licet/internal/models"
@@ -8,7 +9,7 @@ import (
 
 // Parser interface for all license server types
 type Parser interface {
-	Query(hostname string) models.ServerQueryResult
+	Query(ctx context.Context, hostname string) (models.ServerQueryResult, error)
 }
 
 // ParserFactory creates appropriate parser for license server type

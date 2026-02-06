@@ -3,7 +3,6 @@ package handlers
 import (
 	"html/template"
 	"net/http"
-	"sort"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -98,13 +97,6 @@ func (h *WebHandler) Index(w http.ResponseWriter, r *http.Request) {
 	data["Servers"] = serversWithStatus
 
 	h.render(w, "index.html", data)
-}
-
-// sortFeaturesByName sorts features alphabetically by name
-func sortFeaturesByName(features []models.Feature) {
-	sort.Slice(features, func(i, j int) bool {
-		return features[i].Name < features[j].Name
-	})
 }
 
 func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {

@@ -2,6 +2,7 @@ package parsers
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"regexp"
@@ -12,6 +13,23 @@ import (
 	log "github.com/sirupsen/logrus"
 	"licet/internal/models"
 	"licet/internal/util"
+)
+
+// FlexLM regex patterns compiled once at package level
+var (
+	flexServerUpRe       = regexp.MustCompile(`([^\s]+):\s+license server UP.*v(\d+\.\d+\.\d+)`)
+	flexCannotConnectRe  = regexp.MustCompile(`Cannot connect to license server`)
+	flexCannotReadRe     = regexp.MustCompile(`Cannot read data`)
+	flexErrorStatusRe    = regexp.MustCompile(`Error getting status`)
+	flexVendorDownRe     = regexp.MustCompile(`vendor daemon is down`)
+	flexFeatureRe        = regexp.MustCompile(`(?i)users of\s+(.+?):\s+\(Total of (\d+) license[s]? issued;\s+Total of (\d+) license[s]? in use\)`)
+	flexNoFeatureRe      = regexp.MustCompile(`(?i)no such feature exists`)
+	flexUncountedRe      = regexp.MustCompile(`(?i)users of\s+(.+?):\s+\(uncounted, node-locked\)`)
+	flexExpirationOldRe  = regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\d+-\w+-\d+)(?:\s+(\w+))?$`)
+	flexExpirationNewRe  = regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\w+)\s+(\d+-\w+-\d+)$`)
+	flexExpirationPermRe = regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\w+)\s+(permanent)`)
+	flexUserRe           = regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v?([^\)]+)\).*start\s+(\w+\s+\d+/\d+(?:/\d+)?\s+\d+:\d+)`)
+	flexFeatureVersionRe = regexp.MustCompile(`^\s+"([^"]+)"\s+v?([0-9.]+)`)
 )
 
 type FlexLMParser struct {
@@ -25,53 +43,23 @@ func NewFlexLMParser(lmutilPath string) *FlexLMParser {
 	return &FlexLMParser{lmutilPath: lmutilPath}
 }
 
-func (p *FlexLMParser) Query(hostname string) models.ServerQueryResult {
+func (p *FlexLMParser) Query(ctx context.Context, hostname string) (models.ServerQueryResult, error) {
 	result := NewServerQueryResult(hostname)
 
 	// Execute lmstat command
-	output, _ := ExecuteCommand("FlexLM", p.lmutilPath, "lmstat", "-i", "-a", "-c", hostname)
+	output, _ := ExecuteCommand(ctx, "FlexLM", p.lmutilPath, "lmstat", "-i", "-a", "-c", hostname)
 
 	// Parse output
 	p.parseOutput(strings.NewReader(string(output)), &result)
 
-	return result
+	return result, nil
 }
 
 func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryResult) {
 	scanner := bufio.NewScanner(reader)
 
-	// Regular expressions
-	serverUpRe := regexp.MustCompile(`([^\s]+):\s+license server UP.*v(\d+\.\d+\.\d+)`)
-	cannotConnectRe := regexp.MustCompile(`Cannot connect to license server`)
-	cannotReadRe := regexp.MustCompile(`Cannot read data`)
-	errorStatusRe := regexp.MustCompile(`Error getting status`)
-	vendorDownRe := regexp.MustCompile(`vendor daemon is down`)
-
-	// Feature patterns (case-insensitive to match PHP behavior)
-	featureRe := regexp.MustCompile(`(?i)users of\s+(.+?):\s+\(Total of (\d+) license[s]? issued;\s+Total of (\d+) license[s]? in use\)`)
-	noFeatureRe := regexp.MustCompile(`(?i)no such feature exists`)
-	uncountedRe := regexp.MustCompile(`(?i)users of\s+(.+?):\s+\(uncounted, node-locked\)`)
-
 	// Track the last feature name to handle "no such feature exists" on next line
 	var lastFeatureName string
-
-	// Expiration patterns - matching PHP's three patterns
-	// Old format: FEATURE VERSION COUNT DATE [VENDOR]
-	expirationOldRe := regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\d+-\w+-\d+)(?:\s+(\w+))?$`)
-	// New format: FEATURE VERSION COUNT VENDOR DATE
-	expirationNewRe := regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\w+)\s+(\d+-\w+-\d+)$`)
-	// Permanent: FEATURE VERSION COUNT VENDOR permanent
-	expirationPermRe := regexp.MustCompile(`(?i)(\w+)\s+(\d+|\d+\.\d+)\s+(\d+)\s+(\w+)\s+(permanent)`)
-
-	// User pattern - capture version for accurate per-version license counts
-	// Note: "v" prefix is optional as some FlexLM servers output (2023.1) instead of (v2023.1)
-	// Date format can be "Mon 1/2 9:00" or "Mon 1/2/24 9:00" or "Mon 1/2/2024 9:00"
-	userRe := regexp.MustCompile(`\s+(.+?)\s+(.+?)\s+(.+?)\s+\(v?([^\)]+)\).*start\s+(\w+\s+\d+/\d+(?:/\d+)?\s+\d+:\d+)`)
-
-	// Inline feature version pattern - appears after "Users of" line
-	// Format: "feature_name" v2026.0630, vendor: ansyslmd, expiry: ...
-	// Note: "v" prefix is optional as some servers omit it
-	featureVersionRe := regexp.MustCompile(`^\s+"([^"]+)"\s+v?([0-9.]+)`)
 
 	currentFeature := ""
 	currentFeatureVersion := "" // Track version from inline feature info
@@ -85,7 +73,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 		line := scanner.Text()
 
 		// Check for "no such feature exists" and remove the last feature if found
-		if noFeatureRe.MatchString(line) && lastFeatureName != "" {
+		if flexNoFeatureRe.MatchString(line) && lastFeatureName != "" {
 			// Remove from usageMap
 			delete(usageMap, lastFeatureName)
 			// Remove all features with this name from featureMap
@@ -99,7 +87,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 		}
 
 		// Check server status
-		if matches := serverUpRe.FindStringSubmatch(line); matches != nil {
+		if matches := flexServerUpRe.FindStringSubmatch(line); matches != nil {
 			result.Status.Service = "up"
 			result.Status.Master = matches[1]
 			if idx := strings.Index(matches[1], "."); idx != -1 {
@@ -109,32 +97,32 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			continue
 		}
 
-		if cannotConnectRe.MatchString(line) {
+		if flexCannotConnectRe.MatchString(line) {
 			result.Status.Service = "down"
 			result.Status.Message = fmt.Sprintf("Cannot connect to %s", result.Status.Hostname)
 			return
 		}
 
-		if cannotReadRe.MatchString(line) {
+		if flexCannotReadRe.MatchString(line) {
 			result.Status.Service = "down"
 			result.Status.Message = fmt.Sprintf("Cannot read data from %s", result.Status.Hostname)
 			return
 		}
 
-		if errorStatusRe.MatchString(line) {
+		if flexErrorStatusRe.MatchString(line) {
 			result.Status.Service = "down"
 			result.Status.Message = fmt.Sprintf("Error getting status from %s", result.Status.Hostname)
 			return
 		}
 
-		if vendorDownRe.MatchString(line) {
+		if flexVendorDownRe.MatchString(line) {
 			result.Status.Service = "warning"
 			result.Status.Message = fmt.Sprintf("Vendor daemon is down on %s", result.Status.Hostname)
 			return
 		}
 
 		// Parse features (usage counts)
-		if matches := featureRe.FindStringSubmatch(line); matches != nil {
+		if matches := flexFeatureRe.FindStringSubmatch(line); matches != nil {
 			featureName := strings.TrimSpace(matches[1])
 			total, _ := strconv.Atoi(matches[2])
 			used, _ := strconv.Atoi(matches[3])
@@ -149,7 +137,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 		// Parse inline feature version (appears after "Users of" line)
 		// Format: "feature_name" v2026.0630, vendor: ansyslmd, expiry: ...
-		if matches := featureVersionRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
+		if matches := flexFeatureVersionRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
 			// Verify the feature name matches (case-insensitive since "Users of" regex is case-insensitive)
 			if strings.EqualFold(matches[1], currentFeature) {
 				currentFeatureVersion = matches[2]
@@ -158,7 +146,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 			continue
 		}
 
-		if matches := uncountedRe.FindStringSubmatch(line); matches != nil {
+		if matches := flexUncountedRe.FindStringSubmatch(line); matches != nil {
 			featureName := strings.TrimSpace(matches[1])
 			featureMap[featureName] = &models.Feature{
 				ServerHostname: result.Status.Hostname,
@@ -177,7 +165,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 		var matched bool
 
 		// Try permanent license pattern first
-		if matches := expirationPermRe.FindStringSubmatch(line); matches != nil {
+		if matches := flexExpirationPermRe.FindStringSubmatch(line); matches != nil {
 			featureName = matches[1]
 			version = matches[2]
 			numLicenses, _ = strconv.Atoi(matches[3])
@@ -188,7 +176,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 		// Try new format: FEATURE VERSION COUNT VENDOR DATE
 		if !matched {
-			if matches := expirationNewRe.FindStringSubmatch(line); matches != nil {
+			if matches := flexExpirationNewRe.FindStringSubmatch(line); matches != nil {
 				featureName = matches[1]
 				version = matches[2]
 				numLicenses, _ = strconv.Atoi(matches[3])
@@ -200,7 +188,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 
 		// Try old format: FEATURE VERSION COUNT DATE [VENDOR]
 		if !matched {
-			if matches := expirationOldRe.FindStringSubmatch(line); matches != nil {
+			if matches := flexExpirationOldRe.FindStringSubmatch(line); matches != nil {
 				featureName = matches[1]
 				version = matches[2]
 				numLicenses, _ = strconv.Atoi(matches[3])
@@ -239,7 +227,7 @@ func (p *FlexLMParser) parseOutput(reader io.Reader, result *models.ServerQueryR
 		}
 
 		// Parse users
-		if matches := userRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
+		if matches := flexUserRe.FindStringSubmatch(line); matches != nil && currentFeature != "" {
 			username := strings.TrimSpace(matches[1])
 			host := strings.TrimSpace(matches[2])
 			version := strings.TrimSpace(matches[4])

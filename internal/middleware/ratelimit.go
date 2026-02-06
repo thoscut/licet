@@ -49,6 +49,7 @@ type RateLimiter struct {
 	tokensPerSecond  float64
 	whitelistedIPs   map[string]bool
 	whitelistedPaths []string
+	stopCh           chan struct{}
 }
 
 // NewRateLimiter creates a new rate limiter instance
@@ -64,6 +65,7 @@ func NewRateLimiter(config RateLimitConfig) *RateLimiter {
 		tokensPerSecond:  float64(config.RequestsPerMinute) / 60.0,
 		whitelistedIPs:   whitelistedIPs,
 		whitelistedPaths: config.WhitelistedPaths,
+		stopCh:           make(chan struct{}),
 	}
 
 	// Start cleanup goroutine
@@ -72,13 +74,23 @@ func NewRateLimiter(config RateLimitConfig) *RateLimiter {
 	return rl
 }
 
+// Stop shuts down the rate limiter cleanup goroutine
+func (rl *RateLimiter) Stop() {
+	close(rl.stopCh)
+}
+
 // cleanupLoop periodically removes stale entries
 func (rl *RateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		rl.cleanup()
+	for {
+		select {
+		case <-ticker.C:
+			rl.cleanup()
+		case <-rl.stopCh:
+			return
+		}
 	}
 }
 

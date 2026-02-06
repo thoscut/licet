@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 	"time"
@@ -27,8 +28,8 @@ func NewServerQueryResult(hostname string) models.ServerQueryResult {
 
 // ExecuteCommand executes a license server command and returns the output
 // It logs the command and output at debug level
-func ExecuteCommand(serverType, binaryPath string, args ...string) ([]byte, error) {
-	cmd := exec.Command(binaryPath, args...)
+func ExecuteCommand(ctx context.Context, serverType, binaryPath string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, binaryPath, args...)
 
 	// Log command execution at debug level
 	log.Debugf("Executing %s command: %s %s", serverType, binaryPath, strings.Join(args, " "))
