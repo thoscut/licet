@@ -142,10 +142,19 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Pre-compute first pool index for each feature name
+		firstPool := make(map[string]int)
+		for idx, feature := range features {
+			if _, exists := firstPool[feature.Name]; !exists {
+				firstPool[feature.Name] = idx
+			}
+		}
+
 		data := h.baseData("Server Details")
 		data["Hostname"] = hostname
 		data["Features"] = features
 		data["Users"] = []interface{}{}
+		data["FirstPool"] = firstPool
 		data["Error"] = err.Error()
 		data["LastUpdated"] = lastUpdated
 
@@ -153,10 +162,25 @@ func (h *WebHandler) Details(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sort features by name for consistent display
+	sortFeaturesByName(result.Features)
+
+	// Pre-compute first pool index for each feature name.
+	// When multiple license pools share the same feature name (different versions
+	// or expirations), checkouts are shown only under the first pool to avoid
+	// duplicate display, since FlexLM checkouts are per feature name, not per pool.
+	firstPool := make(map[string]int)
+	for idx, feature := range result.Features {
+		if _, exists := firstPool[feature.Name]; !exists {
+			firstPool[feature.Name] = idx
+		}
+	}
+
 	data := h.baseData("Server Details")
 	data["Hostname"] = hostname
 	data["Features"] = result.Features
 	data["Users"] = result.Users
+	data["FirstPool"] = firstPool
 	data["LastUpdated"] = time.Now() // Data was just fetched live
 
 	h.render(w, "details.html", data)

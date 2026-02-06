@@ -126,12 +126,15 @@
             <tbody>
                 {{range $idx, $feature := .Features}}
                 {{$featureName := $feature.Name}}
-                {{$featureVersion := $feature.Version}}
+                {{$firstIdx := index $.FirstPool $featureName}}
+                {{$isFirstPool := eq $idx $firstIdx}}
                 {{$checkoutCount := 0}}
+                {{if $isFirstPool}}
                 {{range $.Users}}
-                    {{if and (eq .FeatureName $featureName) (eq .LicenseVersion $featureVersion)}}
+                    {{if eq .FeatureName $featureName}}
                         {{$checkoutCount = add $checkoutCount 1}}
                     {{end}}
+                {{end}}
                 {{end}}
                 <tr class="feature-row expandable-row" data-has-checkouts="{{gt $checkoutCount 0}}" data-feature-index="{{$idx}}">
                     <td>
@@ -144,7 +147,7 @@
                     <td>{{$feature.TotalLicenses}}</td>
                     <td>{{$feature.UsedLicenses}}</td>
                     <td>{{$feature.AvailableLicenses}}</td>
-                    <td>{{$checkoutCount}}</td>
+                    <td>{{if $isFirstPool}}{{$checkoutCount}}{{else}}-{{end}}</td>
                 </tr>
                 {{if gt $checkoutCount 0}}
                 <tr class="checkout-row" data-feature-index="{{$idx}}">
@@ -163,7 +166,7 @@
                                 </thead>
                                 <tbody>
                                     {{range $.Users}}
-                                        {{if and (eq .FeatureName $featureName) (eq .LicenseVersion $featureVersion)}}
+                                        {{if eq .FeatureName $featureName}}
                                         <tr>
                                             <td>{{.Username}}</td>
                                             <td>{{.Host}}</td>

@@ -1386,6 +1386,131 @@ vendor daemon is down`,
 	}
 }
 
+// TestFlexLMParser_InlineVersionDiffersFromLicenseFile tests the scenario where the inline
+// version (vendor daemon max version) differs from the license file pool version.
+// This is common with Ansys where inline shows v2026.0630 but license file has v2025.0101.
+// Users should still be associated correctly with the feature by name.
+func TestFlexLMParser_InlineVersionDiffersFromLicenseFile(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of cfd_solve:  (Total of 10 licenses issued;  Total of 2 licenses in use)
+
+  "cfd_solve" v2026.0630, vendor: ansyslmd, expiry: permanent(no expiration date)
+  vendor_string: customer:00411180
+  floating license
+
+    user1 host1.example.de host1.example.de 1234 (v2025.0506) (server/27000 100), start Mon 1/15 9:00
+    user2 host2.example.de host2.example.de 2345 (v2025.0506) (server/27000 101), start Mon 1/15 10:00
+
+License files:
+cfd_solve 2025.0101 10 ansyslmd 31-dec-2026
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should have 1 feature from license file
+	if len(result.Features) != 1 {
+		t.Fatalf("Expected 1 feature, got %d", len(result.Features))
+	}
+
+	feature := result.Features[0]
+
+	// Feature version comes from license file: "2025.0101"
+	if feature.Version != "2025.0101" {
+		t.Errorf("Expected feature version '2025.0101' (from license file), got '%s'", feature.Version)
+	}
+
+	// Users should be parsed correctly
+	if len(result.Users) != 2 {
+		t.Fatalf("Expected 2 users, got %d", len(result.Users))
+	}
+
+	// Users get LicenseVersion "2026.0630" from the inline version line
+	// This differs from the feature's Version "2025.0101"!
+	// The template MUST match by feature name, not by version, to display these checkouts
+	for _, user := range result.Users {
+		if user.FeatureName != "cfd_solve" {
+			t.Errorf("Expected user feature name 'cfd_solve', got '%s'", user.FeatureName)
+		}
+		if user.LicenseVersion != "2026.0630" {
+			t.Errorf("User %s: expected LicenseVersion '2026.0630' (from inline), got '%s'", user.Username, user.LicenseVersion)
+		}
+		// LicenseVersion (2026.0630) != feature.Version (2025.0101)
+		// Template must NOT require eq .LicenseVersion $featureVersion
+	}
+}
+
+// TestFlexLMParser_NoInlineVersionMultiplePools tests the scenario where there is no
+// inline version line and multiple license pools exist. In this case LicenseVersion
+// stays empty because the parser can't determine which pool the checkout belongs to.
+func TestFlexLMParser_NoInlineVersionMultiplePools(t *testing.T) {
+	parser := &FlexLMParser{lmutilPath: "/usr/local/bin/lmutil"}
+
+	output := `lmstat - Copyright (c) 1989-2023 Flexera.
+License server status: 27000@server.example.com
+    server.example.com: license server UP v11.18.1
+
+Feature usage info:
+
+Users of my_feature:  (Total of 30 licenses issued;  Total of 3 licenses in use)
+
+    user1 host1 /dev/tty (v2023.1) (server/27000 100), start Mon 1/15 9:00
+    user2 host2 /dev/tty (v2024.0) (server/27000 101), start Mon 1/15 10:00
+    user3 host3 /dev/tty (v2023.1) (server/27000 102), start Mon 1/15 11:00
+
+License files:
+my_feature 2023.1 15 myvendor 31-dec-2025
+my_feature 2024.0 15 myvendor 31-dec-2026
+`
+
+	result := models.ServerQueryResult{
+		Status: models.ServerStatus{
+			Hostname: "27000@server.example.com",
+			Service:  "down",
+		},
+		Features: []models.Feature{},
+		Users:    []models.LicenseUser{},
+	}
+
+	parser.parseOutput(strings.NewReader(output), &result)
+
+	// Should have 2 features (different versions/expirations)
+	if len(result.Features) != 2 {
+		t.Fatalf("Expected 2 features, got %d", len(result.Features))
+	}
+
+	// All 3 users should be parsed
+	if len(result.Users) != 3 {
+		t.Fatalf("Expected 3 users, got %d", len(result.Users))
+	}
+
+	// Without inline version line and with multiple pools, LicenseVersion stays empty
+	// The template MUST match by feature name only to display these checkouts
+	for _, user := range result.Users {
+		if user.FeatureName != "my_feature" {
+			t.Errorf("Expected feature name 'my_feature', got '%s'", user.FeatureName)
+		}
+		// LicenseVersion is empty because multiple pools prevent auto-assignment
+		// This means eq .LicenseVersion "2023.1" and eq .LicenseVersion "2024.0" both fail
+		// Template must NOT require eq .LicenseVersion $featureVersion
+	}
+}
+
 // TestFlexLMParser_CaseSensitiveFeatureVersionMatching tests that the inline feature version
 // is correctly matched even when the "Users of" line has different case than the inline version line
 func TestFlexLMParser_CaseSensitiveFeatureVersionMatching(t *testing.T) {
