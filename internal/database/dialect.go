@@ -1,5 +1,7 @@
 package database
 
+import "strconv"
+
 // Dialect provides database-specific SQL expressions
 type Dialect interface {
 	// UpsertFeature returns the SQL for inserting or updating a feature
@@ -66,7 +68,7 @@ func (d *PostgresDialect) HourExtract() string {
 }
 
 func (d *PostgresDialect) Placeholder(index int) string {
-	return "$" + string(rune('0'+index))
+	return "$" + strconv.Itoa(index)
 }
 
 func (d *PostgresDialect) SupportsPositionalParams() bool {

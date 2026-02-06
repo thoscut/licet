@@ -12,54 +12,8 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"licet/internal/config"
 )
-
-// AuthConfig holds authentication configuration
-type AuthConfig struct {
-	Enabled            bool      `mapstructure:"enabled"`
-	AllowAnonymousRead bool      `mapstructure:"allow_anonymous_read"`
-	APIKeys            []APIKey  `mapstructure:"api_keys"`
-	BasicAuth          BasicAuth `mapstructure:"basic_auth"`
-	SessionTimeout     int       `mapstructure:"session_timeout"` // Minutes
-	ExemptPaths        []string  `mapstructure:"exempt_paths"`
-}
-
-// APIKey represents an API key with associated permissions
-type APIKey struct {
-	Name        string `mapstructure:"name"`
-	Key         string `mapstructure:"key"`
-	Role        string `mapstructure:"role"` // "admin", "readonly", "write"
-	Description string `mapstructure:"description"`
-	Enabled     bool   `mapstructure:"enabled"`
-}
-
-// BasicAuth holds basic authentication configuration
-type BasicAuth struct {
-	Enabled bool        `mapstructure:"enabled"`
-	Users   []BasicUser `mapstructure:"users"`
-}
-
-// BasicUser represents a user for basic authentication
-type BasicUser struct {
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"` // Should be hashed in production
-	Role     string `mapstructure:"role"`
-	Enabled  bool   `mapstructure:"enabled"`
-}
-
-// DefaultAuthConfig returns default authentication configuration
-func DefaultAuthConfig() AuthConfig {
-	return AuthConfig{
-		Enabled:        false,
-		SessionTimeout: 60,
-		ExemptPaths: []string{
-			"/api/v1/health",
-			"/static/",
-		},
-		APIKeys:   []APIKey{},
-		BasicAuth: BasicAuth{Enabled: false, Users: []BasicUser{}},
-	}
-}
 
 // Role constants
 const (
@@ -75,14 +29,11 @@ const (
 	PermissionAdmin = "admin"
 )
 
-// AuthContext key for storing auth info in request context
-type authContextKey string
+// authContextKey is used for storing auth info in request context
+type authContextKey struct{}
 
-const (
-	AuthUserKey   authContextKey = "auth_user"
-	AuthRoleKey   authContextKey = "auth_role"
-	AuthMethodKey authContextKey = "auth_method"
-)
+// authInfoKey is the single context key for AuthInfo
+var authInfoKey = authContextKey{}
 
 // AuthInfo contains authentication information for a request
 type AuthInfo struct {
@@ -94,11 +45,12 @@ type AuthInfo struct {
 
 // Authenticator handles authentication for the application
 type Authenticator struct {
-	config      AuthConfig
-	apiKeyIndex map[string]*APIKey
-	userIndex   map[string]*BasicUser
+	config      config.AuthConfig
+	apiKeyIndex map[string]*config.APIKeyConfig
+	userIndex   map[string]*config.BasicUserConfig
 	sessions    map[string]*session
 	sessionMu   sync.RWMutex
+	stopCh      chan struct{}
 }
 
 type session struct {
@@ -108,17 +60,18 @@ type session struct {
 }
 
 // NewAuthenticator creates a new authenticator instance
-func NewAuthenticator(config AuthConfig) *Authenticator {
+func NewAuthenticator(cfg config.AuthConfig) *Authenticator {
 	auth := &Authenticator{
-		config:      config,
-		apiKeyIndex: make(map[string]*APIKey),
-		userIndex:   make(map[string]*BasicUser),
+		config:      cfg,
+		apiKeyIndex: make(map[string]*config.APIKeyConfig),
+		userIndex:   make(map[string]*config.BasicUserConfig),
 		sessions:    make(map[string]*session),
+		stopCh:      make(chan struct{}),
 	}
 
 	// Build API key index
-	for i := range config.APIKeys {
-		key := &config.APIKeys[i]
+	for i := range cfg.APIKeys {
+		key := &cfg.APIKeys[i]
 		if key.Enabled {
 			// Hash the key for secure comparison
 			auth.apiKeyIndex[hashKey(key.Key)] = key
@@ -126,8 +79,8 @@ func NewAuthenticator(config AuthConfig) *Authenticator {
 	}
 
 	// Build user index
-	for i := range config.BasicAuth.Users {
-		user := &config.BasicAuth.Users[i]
+	for i := range cfg.BasicAuth.Users {
+		user := &cfg.BasicAuth.Users[i]
 		if user.Enabled {
 			auth.userIndex[user.Username] = user
 		}
@@ -139,20 +92,30 @@ func NewAuthenticator(config AuthConfig) *Authenticator {
 	return auth
 }
 
+// Stop shuts down the session cleanup goroutine
+func (a *Authenticator) Stop() {
+	close(a.stopCh)
+}
+
 // cleanupSessions periodically removes expired sessions
 func (a *Authenticator) cleanupSessions() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		a.sessionMu.Lock()
-		now := time.Now()
-		for token, sess := range a.sessions {
-			if now.After(sess.expiresAt) {
-				delete(a.sessions, token)
+	for {
+		select {
+		case <-ticker.C:
+			a.sessionMu.Lock()
+			now := time.Now()
+			for token, sess := range a.sessions {
+				if now.After(sess.expiresAt) {
+					delete(a.sessions, token)
+				}
 			}
+			a.sessionMu.Unlock()
+		case <-a.stopCh:
+			return
 		}
-		a.sessionMu.Unlock()
 	}
 }
 
@@ -339,9 +302,13 @@ func AuthMiddleware(auth *Authenticator) func(http.Handler) http.Handler {
 					}).Debug("Anonymous read access allowed")
 
 					// Set anonymous auth info in context
-					ctx := context.WithValue(r.Context(), AuthUserKey, "anonymous")
-					ctx = context.WithValue(ctx, AuthRoleKey, RoleReadonly)
-					ctx = context.WithValue(ctx, AuthMethodKey, "anonymous")
+					anonInfo := &AuthInfo{
+						Authenticated: false,
+						Username:      "anonymous",
+						Role:          RoleReadonly,
+						Method:        "anonymous",
+					}
+					ctx := context.WithValue(r.Context(), authInfoKey, anonInfo)
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return
 				}
@@ -391,9 +358,7 @@ func AuthMiddleware(auth *Authenticator) func(http.Handler) http.Handler {
 			}
 
 			// Add auth info to request context
-			ctx := context.WithValue(r.Context(), AuthUserKey, authInfo.Username)
-			ctx = context.WithValue(ctx, AuthRoleKey, authInfo.Role)
-			ctx = context.WithValue(ctx, AuthMethodKey, authInfo.Method)
+			ctx := context.WithValue(r.Context(), authInfoKey, authInfo)
 
 			log.WithFields(log.Fields{
 				"path":   r.URL.Path,
@@ -409,15 +374,12 @@ func AuthMiddleware(auth *Authenticator) func(http.Handler) http.Handler {
 
 // GetAuthInfo extracts authentication info from request context
 func GetAuthInfo(r *http.Request) *AuthInfo {
-	username, _ := r.Context().Value(AuthUserKey).(string)
-	role, _ := r.Context().Value(AuthRoleKey).(string)
-	method, _ := r.Context().Value(AuthMethodKey).(string)
-
+	if info, ok := r.Context().Value(authInfoKey).(*AuthInfo); ok {
+		return info
+	}
 	return &AuthInfo{
-		Authenticated: username != "",
-		Username:      username,
-		Role:          role,
-		Method:        method,
+		Authenticated: false,
+		Method:        "none",
 	}
 }
 
@@ -425,8 +387,9 @@ func GetAuthInfo(r *http.Request) *AuthInfo {
 func RequireRole(minRole string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			role, ok := r.Context().Value(AuthRoleKey).(string)
-			if !ok || role == "" {
+			authInfo := GetAuthInfo(r)
+			role := authInfo.Role
+			if !authInfo.Authenticated || role == "" {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				json.NewEncoder(w).Encode(map[string]interface{}{

@@ -109,7 +109,6 @@ type ServerQueryResult struct {
 	Status   ServerStatus
 	Features []Feature
 	Users    []LicenseUser
-	Error    error
 }
 
 // UtilizationData represents current utilization for a feature

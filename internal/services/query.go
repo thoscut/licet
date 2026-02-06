@@ -54,22 +54,22 @@ func (s *QueryService) QueryServer(hostname, serverType string) (models.ServerQu
 	}
 
 	log.Infof("Querying %s server: %s", serverType, hostname)
-	result := parser.Query(hostname)
 
-	// Log query results at debug level
-	if result.Error != nil {
-		log.Debugf("Query error for %s: %v", hostname, result.Error)
-	} else {
-		log.Debugf("Query successful for %s: service=%s, features=%d, users=%d",
-			hostname, result.Status.Service, len(result.Features), len(result.Users))
+	// Use context with timeout for both the query and subsequent storage
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	result, err := parser.Query(ctx, hostname)
+	if err != nil {
+		log.Debugf("Query error for %s: %v", hostname, err)
+		return result, err
 	}
 
-	// Store results in database if storage service is available
-	if s.storage != nil && result.Error == nil && len(result.Features) > 0 {
-		// Use context with timeout for database operations
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+	log.Debugf("Query successful for %s: service=%s, features=%d, users=%d",
+		hostname, result.Status.Service, len(result.Features), len(result.Users))
 
+	// Store results in database if storage service is available
+	if s.storage != nil && len(result.Features) > 0 {
 		log.Debugf("Storing %d features from %s to database", len(result.Features), hostname)
 		if err := s.storage.StoreFeatures(ctx, result.Features); err != nil {
 			log.Errorf("Failed to store features: %v", err)
@@ -85,5 +85,5 @@ func (s *QueryService) QueryServer(hostname, serverType string) (models.ServerQu
 		}
 	}
 
-	return result, result.Error
+	return result, nil
 }

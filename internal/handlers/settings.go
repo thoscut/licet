@@ -136,17 +136,10 @@ func TestServerConnection(cfg *config.Config, query *services.QueryService) http
 		result, err := query.QueryServer(req.Hostname, req.Type)
 
 		w.Header().Set("Content-Type", "application/json")
-		if err != nil || result.Error != nil {
-			errorMsg := "Connection failed"
-			if err != nil {
-				errorMsg = err.Error()
-			} else if result.Error != nil {
-				errorMsg = result.Error.Error()
-			}
-
+		if err != nil {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"success": false,
-				"message": errorMsg,
+				"message": err.Error(),
 			})
 			return
 		}

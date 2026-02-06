@@ -7,6 +7,14 @@ import (
 	"strings"
 )
 
+// Pre-compiled regex patterns for validation
+var (
+	ipv4Regex     = regexp.MustCompile(`^(\d{1,3}\.){3}\d{1,3}$`)
+	hostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-\.]*[a-zA-Z0-9])?$`)
+	hasLetterRe   = regexp.MustCompile(`[a-zA-Z]`)
+	emailRegex    = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+)
+
 // SupportedServerTypes returns the list of supported license server types
 func SupportedServerTypes() map[string]bool {
 	return map[string]bool{
@@ -99,7 +107,6 @@ func isValidHost(host string) bool {
 	}
 
 	// Check for IPv4 address pattern first (to reject invalid IPs like 192.168.1.300)
-	ipv4Regex := regexp.MustCompile(`^(\d{1,3}\.){3}\d{1,3}$`)
 	if ipv4Regex.MatchString(host) {
 		// Validate each octet
 		parts := strings.Split(host, ".")
@@ -114,11 +121,9 @@ func isValidHost(host string) bool {
 
 	// Check for valid hostname pattern (alphanumeric, dots, hyphens)
 	// Must start with alphanumeric and not be purely numeric (to distinguish from invalid IPs)
-	hostnameRegex := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-\.]*[a-zA-Z0-9])?$`)
 	if hostnameRegex.MatchString(host) {
 		// Make sure it's not a malformed IP (contains at least one letter)
-		hasLetter := regexp.MustCompile(`[a-zA-Z]`)
-		return hasLetter.MatchString(host)
+		return hasLetterRe.MatchString(host)
 	}
 
 	return false
@@ -148,8 +153,6 @@ func ValidateEmail(email string) error {
 		return nil // Empty is allowed (optional field)
 	}
 
-	// Basic email validation
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	if !emailRegex.MatchString(email) {
 		return fmt.Errorf("invalid email format: %s", email)
 	}

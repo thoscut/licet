@@ -11,19 +11,20 @@ import (
 	"licet/internal/models"
 )
 
-// EnhancedAnalyticsService provides advanced analytics capabilities
+// EnhancedAnalyticsService provides advanced analytics capabilities.
+// It composes AnalyticsService to reuse shared query logic.
 type EnhancedAnalyticsService struct {
-	db      *sqlx.DB
-	storage *StorageService
-	dbType  string
+	db        *sqlx.DB
+	storage   *StorageService
+	analytics *AnalyticsService
 }
 
 // NewEnhancedAnalyticsService creates a new enhanced analytics service
 func NewEnhancedAnalyticsService(db *sqlx.DB, storage *StorageService, dbType string) *EnhancedAnalyticsService {
 	return &EnhancedAnalyticsService{
-		db:      db,
-		storage: storage,
-		dbType:  dbType,
+		db:        db,
+		storage:   storage,
+		analytics: NewAnalyticsService(db, storage, dbType),
 	}
 }
 
@@ -106,11 +107,27 @@ func (s *EnhancedAnalyticsService) GetEnhancedStatistics(ctx context.Context, se
 		peakUtilization = (float64(maxVal) / float64(currentFeature.TotalLicenses)) * 100
 	}
 
-	// Calculate time patterns (simplified - would need hourly data for accurate patterns)
-	peakHour := 14     // Default to afternoon
-	peakDayOfWeek := 2 // Default to Tuesday
+	// Calculate time patterns from actual heatmap data
+	peakHour := 0
+	peakDayOfWeek := 0
 	weekdayAvg := avgUsage
-	weekendAvg := avgUsage * 0.3 // Estimate
+	weekendAvg := avgUsage
+
+	heatmapData, heatErr := s.analytics.GetHeatmapData(ctx, server, days)
+	if heatErr == nil {
+		for _, hm := range heatmapData {
+			if hm.FeatureName == feature {
+				maxHourUsage := 0.0
+				for _, h := range hm.HourlyData {
+					if h.AvgUsage > maxHourUsage {
+						maxHourUsage = h.AvgUsage
+						peakHour = h.Hour
+					}
+				}
+				break
+			}
+		}
+	}
 
 	// Calculate efficiency score
 	efficiencyScore := calculateEfficiencyScore(avgUtilization, peakUtilization, stdDev, float64(currentFeature.TotalLicenses))
@@ -322,8 +339,8 @@ type UtilizationWithTrend struct {
 
 // GetCurrentUtilizationWithTrend returns utilization data enriched with trend information
 func (s *EnhancedAnalyticsService) GetCurrentUtilizationWithTrend(ctx context.Context, serverFilter string, days int) ([]UtilizationWithTrend, error) {
-	// Get base statistics
-	stats, err := s.getUtilizationStats(ctx, serverFilter, days)
+	// Delegate to the composed AnalyticsService for base stats
+	stats, err := s.analytics.GetUtilizationStats(ctx, serverFilter, days)
 	if err != nil {
 		return nil, err
 	}
@@ -373,38 +390,6 @@ func (s *EnhancedAnalyticsService) GetCurrentUtilizationWithTrend(ctx context.Co
 	}
 
 	return result, nil
-}
-
-// getUtilizationStats retrieves utilization statistics from the database
-func (s *EnhancedAnalyticsService) getUtilizationStats(ctx context.Context, server string, days int) ([]models.UtilizationStats, error) {
-	var stats []models.UtilizationStats
-	cutoff := time.Now().AddDate(0, 0, -days)
-
-	query := `
-		SELECT
-			fu.server_hostname,
-			fu.feature_name,
-			AVG(fu.users_count) as avg_usage,
-			MAX(fu.users_count) as peak_usage,
-			MIN(fu.users_count) as min_usage,
-			(SELECT total_licenses FROM features
-			 WHERE server_hostname = fu.server_hostname
-			   AND name = fu.feature_name
-			 LIMIT 1) as total_licenses
-		FROM feature_usage fu
-		WHERE fu.date >= ?
-	`
-
-	args := []interface{}{cutoff.Format("2006-01-02")}
-	if server != "" {
-		query += " AND fu.server_hostname = ?"
-		args = append(args, server)
-	}
-
-	query += " GROUP BY fu.server_hostname, fu.feature_name ORDER BY avg_usage DESC"
-
-	err := s.db.SelectContext(ctx, &stats, query, args...)
-	return stats, err
 }
 
 // Helper functions
